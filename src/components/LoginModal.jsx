@@ -3,23 +3,26 @@ import './LoginModal.css';
 
 const LoginModal = ({ isOpen, onClose, onLogin }) => {
   const [credentials, setCredentials] = useState({
-    username: '',
+    email: '',
     password: ''
   });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Simple validation - replace with actual authentication
-    if (credentials.username === 'admin' && credentials.password === 'password') {
-      onLogin('admin');
+    setLoading(true);
+    setError('');
+
+    try {
+      await onLogin(credentials);
+      setCredentials({ email: '', password: '' });
       onClose();
-    } else if (credentials.username === 'clerk' && credentials.password === 'password') {
-      onLogin('clerk');
-      onClose();
-    } else {
-      setError('Invalid username or password');
+    } catch (err) {
+      setError('Login failed. Please check your credentials.');
+      console.error('Login error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -43,18 +46,18 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
         
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label htmlFor="username">Username:</label>
+            <label htmlFor="email">Email:</label>
             <input
-              type="text"
-              id="username"
-              name="username"
-              value={credentials.username}
+              type="email"
+              id="email"
+              name="email"
+              value={credentials.email}
               onChange={handleChange}
               required
-              placeholder="Enter your username"
+              placeholder="Enter your email"
             />
           </div>
-          
+
           <div className="form-group">
             <label htmlFor="password">Password:</label>
             <input
@@ -67,10 +70,12 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
               placeholder="Enter your password"
             />
           </div>
-          
+
           {error && <div className="error-message">{error}</div>}
-          
-          <button type="submit" className="login-submit-btn">Login</button>
+
+          <button type="submit" className="login-submit-btn" disabled={loading}>
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
         </form>
         
         <div className="demo-credentials">

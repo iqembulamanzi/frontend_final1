@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from "react";
+import { reportIncident } from "../api";
 import './Chatbot.css';
 
 const Chatbot = () => {
   const [comment, setComment] = useState("");
-  const [reportType, setReportType] = useState("pipe-burst");
-  const [level, setLevel] = useState("low");
+  const [reportType, setReportType] = useState("sewage");
+  const [level, setLevel] = useState("P2");
   const [location, setLocation] = useState(null);
   const [mediaFile, setMediaFile] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
   const [recorder, setRecorder] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
 
   // Get user's geolocation when the component loads
   useEffect(() => {
@@ -63,17 +67,43 @@ const Chatbot = () => {
     }
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const reportData = {
-      comment,
-      reportType,
-      level,
-      location,
-      timestamp: new Date().toISOString(),
-      mediaFile: mediaFile ? mediaFile.name : null,
-    };
-    console.log("Submitting report:", reportData);
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+
+    try {
+      const formData = new FormData();
+      formData.append('description', comment);
+      formData.append('category', reportType);
+      formData.append('priority', level);
+
+      if (location) {
+        formData.append('latitude', location.latitude.toString());
+        formData.append('longitude', location.longitude.toString());
+      }
+
+      if (mediaFile) {
+        formData.append('image', mediaFile);
+      }
+
+      await reportIncident(formData);
+
+      setSuccess(true);
+      // Reset form
+      setComment("");
+      setReportType("sewage");
+      setLevel("P2");
+      setMediaFile(null);
+      setAudioURL(null);
+
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setError('Failed to submit report. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -91,27 +121,28 @@ const Chatbot = () => {
         <div className="form-group">
           <label htmlFor="report-type">Report Type</label>
           <select id="report-type" value={reportType} onChange={(e) => setReportType(e.target.value)}>
-            <option value="pipe-burst">Pipe Burst</option>
-            <option value="blockage">Blockage</option>
-            <option value="spillage">Chemical Spillage</option>
+            <option value="sewage">Sewage Issue</option>
+            <option value="manhole_overflow">Manhole Overflow</option>
+            <option value="pipe_burst">Pipe Burst</option>
+            <option value="toilet_backup">Toilet Backup</option>
             <option value="other">Other</option>
           </select>
         </div>
 
         <div className="form-group">
-          <label>Pollution Level</label>
+          <label>Priority Level</label>
           <div className="radio-group">
             <label>
-              <input type="radio" name="level" value="low" checked={level === "low"} onChange={(e) => setLevel(e.target.value)} />
-              Low
+              <input type="radio" name="level" value="P0" checked={level === "P0"} onChange={(e) => setLevel(e.target.value)} />
+              Critical (P0)
             </label>
             <label>
-              <input type="radio" name="level" value="medium" checked={level === "medium"} onChange={(e) => setLevel(e.target.value)} />
-              Medium
+              <input type="radio" name="level" value="P1" checked={level === "P1"} onChange={(e) => setLevel(e.target.value)} />
+              High (P1)
             </label>
             <label>
-              <input type="radio" name="level" value="high" checked={level === "high"} onChange={(e) => setLevel(e.target.value)} />
-              High
+              <input type="radio" name="level" value="P2" checked={level === "P2"} onChange={(e) => setLevel(e.target.value)} />
+              Medium (P2)
             </label>
           </div>
         </div>
@@ -158,8 +189,11 @@ const Chatbot = () => {
           </div>
         )}
 
-        <button type="submit" className="submit-button">
-          Submit Report
+        {error && <div className="error-message">{error}</div>}
+        {success && <div className="success-message">Report submitted successfully! A maintenance team will be notified.</div>}
+
+        <button type="submit" className="submit-button" disabled={loading}>
+          {loading ? 'Submitting...' : 'Submit Report'}
         </button>
       </form>
     </div>

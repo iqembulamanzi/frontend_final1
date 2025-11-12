@@ -38,6 +38,11 @@ html, body {
   display: flex;
 }
 
+.auth-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .nav-link {
   text-decoration: none;
   color: white;
@@ -46,6 +51,9 @@ html, body {
   padding: 0.6rem 1rem;
   border-radius: 6px;
   font-size: 1.1rem;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
 }
 
 .login-btn {
@@ -56,6 +64,21 @@ html, body {
   border: none;
   cursor: pointer;
   font-family: inherit;
+}
+
+.register-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  padding: 0.6rem 1.8rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.register-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.7);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
 }
 
 .login-btn:hover {

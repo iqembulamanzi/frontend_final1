@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { getIncidents, getAllocatedIncidents, getUnallocatedIncidents, allocateIncident, updateIncident, getIncidentsForMap } from "../api";
+import { Loader } from "@googlemaps/js-api-loader";
 import "./Admin.css";
 
 const Admin = ({ user }) => {
@@ -26,96 +28,22 @@ const Admin = ({ user }) => {
     { id: 5, name: "James Miller", role: "Emergency Response", status: "Available", avatar: "JM", tasks: 2 }
   ]);
 
-  // Mock data with assignment functionality
+  // Real data from API
   const [dashboardData, setDashboardData] = useState({
     overview: {
       totalUsers: 1,
-      activeIncidents: 24,
+      activeIncidents: 0,
       systemUptime: "99.8%",
       monitoringPoints: 1243,
-      assignedIncidents: 18,
+      assignedIncidents: 0,
       responseTime: "2.3h"
     },
-    recentActivity: [
-      { id: 1, action: "New incident reported", location: "Main St", time: "2 mins ago", type: "incident", priority: "high" },
-      { id: 2, action: "User registered", user: "john@example.com", time: "5 mins ago", type: "user" },
-      { id: 3, action: "Technician assigned", incident: "INC-001", technician: "Mike Johnson", time: "10 mins ago", type: "assignment" },
-      { id: 4, action: "System backup completed", time: "1 hour ago", type: "system" },
-      { id: 5, action: "Incident resolved", incident: "INC-005", location: "Central Park", time: "2 hours ago", type: "resolution", priority: "medium" }
-    ],
-    incidents: [
-      { 
-        id: 1, 
-        incidentId: "INC-001",
-        location: "Main St", 
-        status: "Assigned", 
-        priority: "High", 
-        reported: "2 hours ago",
-        description: "Severe blockage causing overflow in main sewer line",
-        assignedTo: "Mike Johnson",
-        assignedTime: "1 hour ago",
-        estimatedResolution: "Today, 16:00",
-        area: "Downtown",
-        severity: "Critical"
-      },
-      { 
-        id: 2, 
-        incidentId: "INC-002",
-        location: "Oak Avenue", 
-        status: "Resolved", 
-        priority: "Medium", 
-        reported: "1 day ago",
-        description: "Minor leak detected in residential area",
-        assignedTo: "Sarah Wilson",
-        assignedTime: "1 day ago",
-        resolvedTime: "Today, 09:30",
-        area: "Residential",
-        severity: "Moderate"
-      },
-      { 
-        id: 3, 
-        incidentId: "INC-003",
-        location: "Pine Road", 
-        status: "Investigating", 
-        priority: "Low", 
-        reported: "3 hours ago",
-        description: "Routine maintenance check and inspection",
-        assignedTo: null,
-        assignedTime: null,
-        estimatedResolution: "Today, 15:00",
-        area: "Industrial",
-        severity: "Low"
-      },
-      { 
-        id: 4, 
-        incidentId: "INC-004",
-        location: "Elm Street", 
-        status: "Active", 
-        priority: "High", 
-        reported: "45 mins ago",
-        description: "Pump failure - urgent attention required",
-        assignedTo: null,
-        assignedTime: null,
-        estimatedResolution: "ASAP",
-        area: "Commercial",
-        severity: "Critical"
-      },
-      { 
-        id: 5, 
-        incidentId: "INC-005",
-        location: "River View", 
-        status: "In Progress", 
-        priority: "Medium", 
-        reported: "5 hours ago",
-        description: "Water pressure fluctuation in distribution system",
-        assignedTo: "James Miller",
-        assignedTime: "4 hours ago",
-        estimatedResolution: "Today, 18:00",
-        area: "Suburban",
-        severity: "Moderate"
-      }
-    ]
+    recentActivity: [],
+    incidents: []
   });
+  const [loading, setLoading] = useState(true); // eslint-disable-line no-unused-vars
+  const [error, setError] = useState(null); // eslint-disable-line no-unused-vars
+  const [heatmapData, setHeatmapData] = useState([]);
 
   // Check if user is admin, redirect if not
   useEffect(() => {
@@ -124,61 +52,149 @@ const Admin = ({ user }) => {
     }
   }, [user, navigate]);
 
+  // Fetch real data from API
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [allIncidents, unallocated, allocated, mapIncidents] = await Promise.all([
+          getIncidents(),
+          getUnallocatedIncidents(),
+          getAllocatedIncidents(),
+          getIncidentsForMap()
+        ]);
+
+        // Transform API data to match component structure
+        const transformedIncidents = allIncidents.map((incident) => ({
+          id: incident._id,
+          incidentId: incident.incidentNumber,
+          location: "Unknown Location", // Would need to be calculated from coordinates
+          status: incident.status === 'reported' ? 'Active' :
+                  incident.status === 'verified' ? 'Assigned' :
+                  incident.status === 'in_progress' ? 'In Progress' :
+                  incident.status === 'resolved' ? 'Resolved' : 'Investigating',
+          priority: incident.priority === 'P0' ? 'High' :
+                   incident.priority === 'P1' ? 'High' :
+                   incident.priority === 'P2' ? 'Medium' : 'Low',
+          reported: new Date(incident.createdAt).toLocaleString(),
+          description: incident.description,
+          assignedTo: incident.guardianAssigned ? incident.guardianAssigned.first_name + ' ' + incident.guardianAssigned.last_name : null,
+          assignedTime: incident.guardianAssigned ? "Recently" : null,
+          estimatedResolution: "TBD",
+          area: "Unknown",
+          severity: incident.priority === 'P0' ? 'Critical' :
+                   incident.priority === 'P1' ? 'High' : 'Moderate'
+        }));
+
+        setDashboardData(prev => ({
+          ...prev,
+          overview: {
+            ...prev.overview,
+            activeIncidents: unallocated.incidents?.length || 0,
+            assignedIncidents: allocated.incidents?.length || 0
+          },
+          incidents: transformedIncidents,
+          recentActivity: [] // Would need to be fetched separately
+        }));
+
+        setHeatmapData(mapIncidents.incidents || []);
+
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user === "admin") {
+      fetchDashboardData();
+    }
+  }, [user]);
+
   // Handle incident assignment
   const handleAssignIncident = (incident) => {
     setSelectedIncident(incident);
     setShowAssignmentModal(true);
   };
 
-  const handleAssignToTechnician = (technician) => {
+  const handleAssignToTechnician = async (technician) => {
     if (selectedIncident) {
-      const updatedIncidents = dashboardData.incidents.map(incident => 
-        incident.id === selectedIncident.id 
-          ? { 
-              ...incident, 
-              assignedTo: technician.name,
-              assignedTime: "Just now",
-              status: "Assigned"
+      try {
+        // Use the API to allocate incident
+        await allocateIncident(selectedIncident.id, technician.id);
+
+        // Update local state optimistically
+        const updatedIncidents = dashboardData.incidents.map(incident =>
+          incident.id === selectedIncident.id
+            ? {
+                ...incident,
+                assignedTo: technician.name,
+                assignedTime: "Just now",
+                status: "Assigned"
+              }
+            : incident
+        );
+
+        setDashboardData(prev => ({
+          ...prev,
+          incidents: updatedIncidents,
+          overview: {
+            ...prev.overview,
+            activeIncidents: Math.max(0, prev.overview.activeIncidents - 1),
+            assignedIncidents: prev.overview.assignedIncidents + 1
+          },
+          recentActivity: [
+            {
+              id: Date.now(),
+              action: "Technician assigned",
+              incident: selectedIncident.incidentId,
+              technician: technician.name,
+              time: "Just now",
+              type: "assignment"
+            },
+            ...prev.recentActivity
+          ]
+        }));
+
+        setShowAssignmentModal(false);
+        setSelectedIncident(null);
+      } catch (error) {
+        console.error('Error assigning technician:', error);
+        alert('Failed to assign technician. Please try again.');
+      }
+    }
+  };
+
+  const handleUpdateIncidentStatus = async (incidentId, newStatus) => {
+    try {
+      // Map frontend status to API status
+      const apiStatus = newStatus === "Resolved" ? "resolved" :
+                       newStatus === "In Progress" ? "in_progress" :
+                       newStatus === "Assigned" ? "verified" : "reported";
+
+      await updateIncident(incidentId, { status: apiStatus });
+
+      const updatedIncidents = dashboardData.incidents.map(incident =>
+        incident.id === incidentId
+          ? {
+              ...incident,
+              status: newStatus,
+              ...(newStatus === "Resolved" && { resolvedTime: new Date().toLocaleString() })
             }
           : incident
       );
 
       setDashboardData(prev => ({
         ...prev,
-        incidents: updatedIncidents,
-        recentActivity: [
-          {
-            id: Date.now(),
-            action: "Technician assigned",
-            incident: selectedIncident.incidentId,
-            technician: technician.name,
-            time: "Just now",
-            type: "assignment"
-          },
-          ...prev.recentActivity
-        ]
+        incidents: updatedIncidents
       }));
-
-      setShowAssignmentModal(false);
-      setSelectedIncident(null);
+    } catch (error) {
+      console.error('Error updating incident status:', error);
+      alert('Failed to update incident status. Please try again.');
     }
-  };
-
-  const handleUpdateIncidentStatus = (incidentId, newStatus) => {
-    const updatedIncidents = dashboardData.incidents.map(incident => 
-      incident.id === incidentId 
-        ? { 
-            ...incident, 
-            status: newStatus,
-            ...(newStatus === "Resolved" && { resolvedTime: new Date().toLocaleString() })
-          }
-        : incident
-    );
-
-    setDashboardData(prev => ({
-      ...prev,
-      incidents: updatedIncidents
-    }));
   };
 
   const renderDashboard = () => (
@@ -421,7 +437,7 @@ const Admin = ({ user }) => {
                 <button className="icon-btn" title="History">📋</button>
               </div>
             </div>
-            
+
             <div className="incident-card-body">
               <div className="incident-location">
                 <span className="location-icon">📍</span>
@@ -430,9 +446,9 @@ const Admin = ({ user }) => {
                   <span className="area-badge">{incident.area}</span>
                 </div>
               </div>
-              
+
               <p className="incident-description">{incident.description}</p>
-              
+
               <div className="incident-meta">
                 <div className="meta-item">
                   <span className="meta-label">Reported</span>
@@ -449,7 +465,7 @@ const Admin = ({ user }) => {
 
             <div className="incident-card-footer">
               <div className="status-section">
-                <select 
+                <select
                   value={incident.status}
                   onChange={(e) => handleUpdateIncidentStatus(incident.id, e.target.value)}
                   className={`status-select-enhanced status-${incident.status.toLowerCase().replace(' ', '-')}`}
@@ -461,7 +477,7 @@ const Admin = ({ user }) => {
                   <option value="Resolved">🟢 Resolved</option>
                 </select>
               </div>
-              
+
               <div className="assignment-section">
                 {incident.assignedTo ? (
                   <div className="assigned-info">
@@ -472,7 +488,7 @@ const Admin = ({ user }) => {
                       <span className="assigned-to">{incident.assignedTo}</span>
                       <span className="assigned-time">{incident.assignedTime}</span>
                     </div>
-                    <button 
+                    <button
                       className="unassign-btn-circle"
                       onClick={() => handleUpdateIncidentStatus(incident.id, 'Active')}
                       title="Unassign"
@@ -481,7 +497,7 @@ const Admin = ({ user }) => {
                     </button>
                   </div>
                 ) : (
-                  <button 
+                  <button
                     className="assign-btn-enhanced"
                     onClick={() => handleAssignIncident(incident)}
                   >
@@ -493,6 +509,17 @@ const Admin = ({ user }) => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Incident Map */}
+      <div className="incidents-map-section">
+        <h3>Incident Locations Map</h3>
+        <div className="map-container" style={{ marginTop: '20px', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+          <IncidentMap heatmapData={heatmapData} />
+        </div>
+        <div style={{ marginTop: '10px', fontSize: '14px', color: '#6b7280', textAlign: 'center' }}>
+          Click on markers to view incident details. Map shows real-time incident locations.
+        </div>
       </div>
 
       {/* Assignment Modal */}
@@ -565,6 +592,132 @@ const Admin = ({ user }) => {
       )}
     </div>
   );
+
+// Google Maps component for incident visualization
+const IncidentMap = ({ heatmapData }) => {
+  const mapRef = useRef(null);
+  const [map, setMap] = useState(null);
+  const [markers, setMarkers] = useState([]);
+
+  useEffect(() => {
+    const initMap = async () => {
+      try {
+        const loader = new Loader({
+          apiKey: "AIzaSyDUMMY_API_KEY", // Replace with actual Google Maps API key
+          version: "weekly",
+        });
+
+        const { Map } = await loader.importLibrary("maps");
+
+        // Default center coordinates (Johannesburg area)
+        const center = { lat: -26.2041, lng: 28.0473 };
+
+        const mapInstance = new Map(mapRef.current, {
+          center: center,
+          zoom: 10,
+          mapTypeControl: true,
+          streetViewControl: false,
+          fullscreenControl: true,
+        });
+
+        setMap(mapInstance);
+      } catch (error) {
+        console.error("Error loading Google Maps:", error);
+      }
+    };
+
+    initMap();
+  }, []);
+
+  useEffect(() => {
+    if (!map || !heatmapData) return;
+
+    // Clear existing markers
+    markers.forEach(marker => marker.setMap(null));
+
+    const newMarkers = heatmapData.map((incident) => {
+      const position = { lat: incident.lat, lng: incident.lng };
+
+      // Determine marker color based on status
+      let markerColor = '#FF0000'; // Default red for open
+      if (incident.status === 'verified') markerColor = '#FFA500'; // Orange
+      else if (incident.status === 'resolved') markerColor = '#00FF00'; // Green
+
+      // Priority indicator
+      let priorityColor = '#FFFF00'; // Default yellow
+      if (incident.priority === 'P0') priorityColor = '#FF0000'; // Red
+      else if (incident.priority === 'P1') priorityColor = '#FFA500'; // Orange
+
+      const marker = new google.maps.Marker({
+        position: position,
+        map: map,
+        title: `Incident ${incident.incidentNumber}`,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: markerColor,
+          fillOpacity: 0.8,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 2,
+          scale: 10,
+        },
+      });
+
+      // Create info window
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div style="font-family: Arial, sans-serif; max-width: 250px;">
+            <h4 style="margin: 0 0 8px 0; color: #1f2937;">${incident.incidentNumber}</h4>
+            <p style="margin: 4px 0;"><strong>Status:</strong> ${incident.status}</p>
+            <p style="margin: 4px 0;"><strong>Priority:</strong> ${incident.priority}</p>
+            <p style="margin: 4px 0;"><strong>Category:</strong> ${incident.category || 'Unknown'}</p>
+            <p style="margin: 4px 0;"><strong>Description:</strong> ${incident.description || 'No description'}</p>
+            <p style="margin: 4px 0;"><strong>Reported:</strong> ${new Date(incident.createdAt).toLocaleString()}</p>
+            ${incident.reporterPhone ? `<p style="margin: 4px 0;"><strong>Phone:</strong> ${incident.reporterPhone}</p>` : ''}
+          </div>
+        `,
+      });
+
+      marker.addListener('click', () => {
+        infoWindow.open(map, marker);
+      });
+
+      return marker;
+    });
+
+    setMarkers(newMarkers);
+
+    // Fit map to show all markers
+    if (newMarkers.length > 0) {
+      const bounds = new google.maps.LatLngBounds();
+      newMarkers.forEach(marker => bounds.extend(marker.getPosition()));
+      map.fitBounds(bounds);
+
+      // Don't zoom in too much for single points
+      const listener = google.maps.event.addListener(map, "idle", () => {
+        if (map.getZoom() > 15) map.setZoom(15);
+        google.maps.event.removeListener(listener);
+      });
+    }
+  }, [map, heatmapData, markers]);
+
+  return (
+    <div style={{ width: '100%', height: '500px', borderRadius: '8px', overflow: 'hidden' }}>
+      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+      {!map && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100%',
+          backgroundColor: '#f3f4f6',
+          color: '#6b7280'
+        }}>
+          Loading Google Maps...
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ======== INSERT THIS TEAM SECTION FUNCTION ========
 const renderTeamSection = () => (
