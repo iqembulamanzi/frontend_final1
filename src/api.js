@@ -59,10 +59,14 @@ const makeRequest = async (url, options = {}) => {
 // Authentication
 export const login = async (email, password) => {
   console.log('Attempting login for:', email);
+  console.log('Password provided (length):', password.length);
+  const requestBody = { email, password };
+  console.log('Request body:', requestBody);
+
   const response = await fetch(`${API_BASE_URL}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(requestBody),
   });
 
   console.log(`Login response status: ${response.status} ${response.statusText}`);
@@ -145,7 +149,7 @@ export const getJobCards = async (params = {}) => {
   return makeRequest(`/job-cards${queryString ? `?${queryString}` : ''}`);
 };
 
-export const getTeamJobCards = async (teamId) => {
+export const getTeamJobCardsNew = async (teamId) => {
   return makeRequest(`/job-cards/team/${teamId}`);
 };
 
@@ -162,7 +166,7 @@ export const getJobCard = async (id) => {
 
 // Users
 export const getUsers = async () => {
-  return makeRequest('users');
+  return makeRequest('/users');
 };
 
 // Incidents for map
@@ -189,4 +193,155 @@ export const reportIncident = async (formData) => {
   const data = await response.text();
   console.log('WhatsApp report successful:', data);
   return data; // WhatsApp returns TwiML XML
+};
+
+// Team Management Routes
+export const createTeam = async (teamData) => {
+  return makeRequest('/teams', {
+    method: 'POST',
+    body: JSON.stringify(teamData),
+  });
+};
+
+export const getTeams = async () => {
+  return makeRequest('/teams');
+};
+
+export const getTeam = async (id) => {
+  return makeRequest(`/teams/${id}`);
+};
+
+export const updateTeam = async (id, updates) => {
+  return makeRequest(`/teams/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+};
+
+export const deleteTeam = async (id) => {
+  return makeRequest(`/teams/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+export const addTeamMember = async (teamId, memberData) => {
+  return makeRequest(`/teams/${teamId}/members`, {
+    method: 'POST',
+    body: JSON.stringify(memberData),
+  });
+};
+
+export const removeTeamMember = async (teamId, memberId) => {
+  return makeRequest(`/teams/${teamId}/members/${memberId}`, {
+    method: 'DELETE',
+  });
+};
+
+export const setTeamLeader = async (teamId, leaderData) => {
+  return makeRequest(`/teams/${teamId}/leader`, {
+    method: 'PUT',
+    body: JSON.stringify(leaderData),
+  });
+};
+
+export const getTeamMembers = async (teamId) => {
+  return makeRequest(`/teams/${teamId}/members`);
+};
+
+// Job Allocation (Team-Based)
+export const allocateJobToTeam = async (allocationData) => {
+  return makeRequest('/job-cards/allocate', {
+    method: 'POST',
+    body: JSON.stringify(allocationData),
+  });
+};
+
+export const getTeamJobCards = async (teamId) => {
+  return makeRequest(`/job-cards/team/${teamId}`);
+};
+
+export const updateJobCard = async (id, updates) => {
+  return makeRequest(`/job-cards/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+};
+
+export const deleteJobCard = async (id) => {
+  return makeRequest(`/job-cards/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+// Field Technician Features
+export const updateTechnicianAvailability = async (technicianId, availabilityData) => {
+  return makeRequest(`/technicians/${technicianId}/availability`, {
+    method: 'PUT',
+    body: JSON.stringify(availabilityData),
+  });
+};
+
+export const getTechnicianAvailability = async (technicianId) => {
+  return makeRequest(`/technicians/${technicianId}/availability`);
+};
+
+export const sendTeamMessage = async (teamId, messageData) => {
+  return makeRequest(`/teams/${teamId}/communication`, {
+    method: 'POST',
+    body: JSON.stringify(messageData),
+  });
+};
+
+export const getTeamCommunication = async (teamId) => {
+  return makeRequest(`/teams/${teamId}/communication`);
+};
+
+// User Account Features
+export const getUserNotifications = async (userId) => {
+  return makeRequest(`/users/${userId}/notifications`);
+};
+
+export const markNotificationAsRead = async (userId, notificationId) => {
+  return makeRequest(`/users/${userId}/notifications/${notificationId}/read`, {
+    method: 'POST',
+  });
+};
+
+export const editReport = async (reportId, updates) => {
+  return makeRequest(`/reports/${reportId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+};
+
+export const deleteReport = async (reportId) => {
+  return makeRequest(`/reports/${reportId}`, {
+    method: 'DELETE',
+  });
+};
+
+export const getUserReports = async (userId) => {
+  return makeRequest(`/users/${userId}/reports`);
+};
+
+// Additional Admin Routes
+export const getAdminTeams = async () => {
+  return makeRequest('/admin/teams');
+};
+
+export const getAdminJobCards = async () => {
+  return makeRequest('/admin/job-cards');
+};
+
+export const archiveTeam = async (teamId) => {
+  return makeRequest(`/admin/teams/${teamId}/archive`, {
+    method: 'POST',
+  });
+};
+
+export const bulkAllocateJobCards = async (allocationData) => {
+  return makeRequest('/admin/job-cards/bulk-allocate', {
+    method: 'POST',
+    body: JSON.stringify(allocationData),
+  });
 };

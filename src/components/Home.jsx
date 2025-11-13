@@ -56,6 +56,10 @@ const Home = ({ user, onLogin, onLogout }) => {
           navigate('/admin');
         } else if (response.user.role === 'Manager') {
           navigate('/assign-job');
+        } else if (response.user.role === 'Guardian') {
+          navigate('/guardian');
+        } else if (response.user.role === 'User') {
+          navigate('/user');
         }
         setIsLoginModalOpen(false);
       }
@@ -67,6 +71,18 @@ const Home = ({ user, onLogin, onLogout }) => {
 
   const handleLogout = () => {
     onLogout();
+  };
+
+  const handleDashboardNavigation = (role) => {
+    if (role === 'admin') {
+      navigate('/admin');
+    } else if (role === 'manager') {
+      navigate('/assign-job');
+    } else if (role === 'guardian') {
+      navigate('/guardian');
+    } else if (role === 'user') {
+      navigate('/user');
+    }
   };
 
   return (
@@ -132,6 +148,20 @@ const Home = ({ user, onLogin, onLogout }) => {
             <p>Ongoing Incidents</p>
           </div>
         </div>
+
+        {/* Dashboard Navigation Section */}
+        {user && (
+          <div className="dashboard-navigation">
+            <h2>Access Your Dashboard</h2>
+            <p>Continue to your role-specific dashboard to manage sewer system operations</p>
+            <button
+              className="dashboard-btn primary"
+              onClick={() => handleDashboardNavigation(user)}
+            >
+              Go to {user === 'admin' ? 'Admin' : user === 'manager' ? 'Team Manager' : user === 'guardian' ? 'Field Technician' : user === 'user' ? 'Community Reporter' : 'Dashboard'}
+            </button>
+          </div>
+        )}
       </main>
 
       {/* Footer */}

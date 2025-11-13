@@ -9,7 +9,7 @@ const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
     email: '',
     phone: '',
     password: '',
-    role: 'Guardian'
+    role: 'User'
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,7 +27,7 @@ const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
         email: '',
         phone: '',
         password: '',
-        role: 'Guardian'
+        role: 'User'
       });
       onRegisterSuccess && onRegisterSuccess();
       onClose();
@@ -133,6 +133,7 @@ const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
               value={formData.role}
               onChange={handleChange}
             >
+              <option value="User">User Account</option>
               <option value="Guardian">Field Technician (Guardian)</option>
               <option value="Manager">Team Manager</option>
               <option value="Admin">Administrator</option>

@@ -120,6 +120,22 @@
   transform: translateY(-1px);
 }
 
+.logout-btn {
+  background: rgba(239, 68, 68, 0.8);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 1);
+}
+
 /* Enhanced Sidebar */
 .admin-content-enhanced {
   display: flex;

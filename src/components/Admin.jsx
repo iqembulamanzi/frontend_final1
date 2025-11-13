@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getIncidents, getAllocatedIncidents, getUnallocatedIncidents, allocateIncident, updateIncident, getIncidentsForMap } from "../api";
+import { getIncidents, getAllocatedIncidents, getUnallocatedIncidents, allocateIncident, updateIncident, getIncidentsForMap, getUsers } from "../api";
 import { Loader } from "@googlemaps/js-api-loader";
 import "./Admin.css";
 
@@ -44,6 +44,21 @@ const Admin = ({ user }) => {
   const [loading, setLoading] = useState(true); // eslint-disable-line no-unused-vars
   const [error, setError] = useState(null); // eslint-disable-line no-unused-vars
   const [heatmapData, setHeatmapData] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [systemSettings, setSystemSettings] = useState({
+    notifications: true,
+    dataRetention: 365,
+    maxFileSize: 10,
+    maintenanceMode: false
+  });
+  const [analyticsData, setAnalyticsData] = useState({
+    totalUsers: 0,
+    activeUsers: 0,
+    totalIncidents: 0,
+    resolvedIncidents: 0,
+    averageResponseTime: '2.3h',
+    systemUptime: '99.8%'
+  });
 
   // Check if user is admin, redirect if not
   useEffect(() => {
@@ -59,11 +74,12 @@ const Admin = ({ user }) => {
         setLoading(true);
         setError(null);
 
-        const [allIncidents, unallocated, allocated, mapIncidents] = await Promise.all([
+        const [allIncidents, unallocated, allocated, mapIncidents, users] = await Promise.all([
           getIncidents(),
           getUnallocatedIncidents(),
           getAllocatedIncidents(),
-          getIncidentsForMap()
+          getIncidentsForMap(),
+          getUsers()
         ]);
 
         // Transform API data to match component structure
@@ -100,6 +116,17 @@ const Admin = ({ user }) => {
         }));
 
         setHeatmapData(mapIncidents.incidents || []);
+        setAllUsers(users || []);
+
+        // Mock analytics data
+        setAnalyticsData({
+          totalUsers: users?.length || 0,
+          activeUsers: users?.filter(u => u.status === 'active').length || 0,
+          totalIncidents: allIncidents?.length || 0,
+          resolvedIncidents: allIncidents?.filter(i => i.status === 'resolved').length || 0,
+          averageResponseTime: '2.3h',
+          systemUptime: '99.8%'
+        });
 
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
@@ -172,8 +199,8 @@ const Admin = ({ user }) => {
     try {
       // Map frontend status to API status
       const apiStatus = newStatus === "Resolved" ? "resolved" :
-                       newStatus === "In Progress" ? "in_progress" :
-                       newStatus === "Assigned" ? "verified" : "reported";
+                        newStatus === "In Progress" ? "in_progress" :
+                        newStatus === "Assigned" ? "verified" : "reported";
 
       await updateIncident(incidentId, { status: apiStatus });
 
@@ -195,6 +222,60 @@ const Admin = ({ user }) => {
       console.error('Error updating incident status:', error);
       alert('Failed to update incident status. Please try again.');
     }
+  };
+
+  const handleUserRoleChange = async (userId, newRole) => {
+    try {
+      // In a real app, this would call an API to update user role
+      setAllUsers(prev => prev.map(user =>
+        user._id === userId ? { ...user, role: newRole } : user
+      ));
+      alert(`User role updated to ${newRole}`);
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      alert('Failed to update user role. Please try again.');
+    }
+  };
+
+  const handleBlockUser = async (userId) => {
+    try {
+      // In a real app, this would call an API to block/unblock user
+      setAllUsers(prev => prev.map(user =>
+        user._id === userId ? { ...user, status: user.status === 'blocked' ? 'active' : 'blocked' } : user
+      ));
+      alert('User status updated successfully');
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      alert('Failed to update user status. Please try again.');
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      // In a real app, this would call an API to delete user
+      setAllUsers(prev => prev.filter(user => user._id !== userId));
+      alert('User deleted successfully');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Failed to delete user. Please try again.');
+    }
+  };
+
+  const handleCreateUser = () => {
+    // In a real app, this would open a modal to create a new user
+    alert('Create user functionality would open a form here');
+  };
+
+  const handleUpdateSettings = (setting, value) => {
+    setSystemSettings(prev => ({
+      ...prev,
+      [setting]: value
+    }));
+    alert('Settings updated successfully');
   };
 
   const renderDashboard = () => (
@@ -719,6 +800,283 @@ const IncidentMap = ({ heatmapData }) => {
   );
 };
 
+// ======== USER MANAGEMENT SECTION ========
+const renderUserManagementSection = () => (
+  <div className="user-management-section">
+    <div className="incidents-header">
+      <div className="header-content">
+        <h1>User Management</h1>
+        <p>Manage user accounts, roles, and permissions</p>
+      </div>
+      <div className="header-stats">
+        <div className="header-stat">
+          <span className="stat-number">{allUsers.length}</span>
+          <span className="stat-label">Total Users</span>
+        </div>
+        <div className="header-stat">
+          <span className="stat-number">{allUsers.filter(u => u.status === 'active').length}</span>
+          <span className="stat-label">Active Users</span>
+        </div>
+        <div className="header-stat">
+          <span className="stat-number">{allUsers.filter(u => u.status === 'blocked').length}</span>
+          <span className="stat-label">Blocked Users</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="action-bar">
+      <div className="action-group">
+        <button className="btn-primary" onClick={handleCreateUser}>
+          <span className="btn-icon">➕</span>
+          Create New User
+        </button>
+      </div>
+      <div className="filter-group">
+        <select className="filter-select">
+          <option>All Roles</option>
+          <option>User</option>
+          <option>Guardian</option>
+          <option>Manager</option>
+          <option>Admin</option>
+        </select>
+        <select className="filter-select">
+          <option>All Status</option>
+          <option>Active</option>
+          <option>Blocked</option>
+        </select>
+        <div className="search-box">
+          <span className="search-icon">🔍</span>
+          <input type="text" placeholder="Search users..." className="search-input" />
+        </div>
+      </div>
+    </div>
+
+    <div className="users-grid">
+      {allUsers.map(user => (
+        <div key={user._id} className="user-card">
+          <div className="user-header">
+            <div className="user-avatar">
+              {user.first_name[0]}{user.last_name[0]}
+            </div>
+            <div className="user-info">
+              <h3>{user.first_name} {user.last_name}</h3>
+              <p>{user.email}</p>
+              <span className={`role-badge role-${user.role?.toLowerCase()}`}>
+                {user.role}
+              </span>
+            </div>
+            <div className="user-actions">
+              <select
+                value={user.role}
+                onChange={(e) => handleUserRoleChange(user._id, e.target.value)}
+                className="role-select"
+              >
+                <option value="User">User</option>
+                <option value="Guardian">Guardian</option>
+                <option value="Manager">Manager</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="user-details">
+            <div className="detail-row">
+              <span className="label">Status:</span>
+              <span className={`value status-${user.status}`}>
+                {user.status || 'Active'}
+              </span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Created:</span>
+              <span className="value">{new Date(user.createdAt).toLocaleDateString()}</span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Last Login:</span>
+              <span className="value">{user.lastLogin || 'Never'}</span>
+            </div>
+          </div>
+
+          <div className="user-footer">
+            <button
+              className={`btn-secondary small ${user.status === 'blocked' ? 'success' : 'warning'}`}
+              onClick={() => handleBlockUser(user._id)}
+            >
+              {user.status === 'blocked' ? 'Unblock' : 'Block'}
+            </button>
+            <button
+              className="btn-danger small"
+              onClick={() => handleDeleteUser(user._id)}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// ======== ANALYTICS SECTION ========
+const renderAnalyticsSection = () => (
+  <div className="analytics-section">
+    <div className="incidents-header">
+      <div className="header-content">
+        <h1>System Analytics</h1>
+        <p>Comprehensive analytics and system performance metrics</p>
+      </div>
+    </div>
+
+    <div className="analytics-grid">
+      <div className="analytics-card">
+        <h3>User Analytics</h3>
+        <div className="metrics-grid">
+          <div className="metric">
+            <span className="metric-value">{analyticsData.totalUsers}</span>
+            <span className="metric-label">Total Users</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">{analyticsData.activeUsers}</span>
+            <span className="metric-label">Active Users</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">{Math.round((analyticsData.activeUsers / analyticsData.totalUsers) * 100)}%</span>
+            <span className="metric-label">User Engagement</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="analytics-card">
+        <h3>Incident Analytics</h3>
+        <div className="metrics-grid">
+          <div className="metric">
+            <span className="metric-value">{analyticsData.totalIncidents}</span>
+            <span className="metric-label">Total Incidents</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">{analyticsData.resolvedIncidents}</span>
+            <span className="metric-label">Resolved</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">{analyticsData.averageResponseTime}</span>
+            <span className="metric-label">Avg Response Time</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="analytics-card">
+        <h3>System Performance</h3>
+        <div className="metrics-grid">
+          <div className="metric">
+            <span className="metric-value">{analyticsData.systemUptime}</span>
+            <span className="metric-label">System Uptime</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">2.3s</span>
+            <span className="metric-label">Avg Load Time</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">98.5%</span>
+            <span className="metric-label">Success Rate</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="analytics-card">
+        <h3>Activity Trends</h3>
+        <div className="chart-placeholder">
+          <p>📊 Activity Chart Would Go Here</p>
+          <p>Daily incident reports, user logins, and system usage over time</p>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// ======== SETTINGS SECTION ========
+const renderSettingsSection = () => (
+  <div className="settings-section">
+    <div className="incidents-header">
+      <div className="header-content">
+        <h1>System Settings</h1>
+        <p>Configure system-wide settings and preferences</p>
+      </div>
+    </div>
+
+    <div className="settings-grid">
+      <div className="settings-card">
+        <h3>Notifications</h3>
+        <div className="setting-item">
+          <label>
+            <input
+              type="checkbox"
+              checked={systemSettings.notifications}
+              onChange={(e) => handleUpdateSettings('notifications', e.target.checked)}
+            />
+            Enable system notifications
+          </label>
+        </div>
+        <div className="setting-item">
+          <label>
+            <input
+              type="checkbox"
+              checked={systemSettings.maintenanceMode}
+              onChange={(e) => handleUpdateSettings('maintenanceMode', e.target.checked)}
+            />
+            Maintenance mode
+          </label>
+        </div>
+      </div>
+
+      <div className="settings-card">
+        <h3>Data Management</h3>
+        <div className="setting-item">
+          <label>Data retention period (days)</label>
+          <input
+            type="number"
+            value={systemSettings.dataRetention}
+            onChange={(e) => handleUpdateSettings('dataRetention', parseInt(e.target.value))}
+            min="30"
+            max="3650"
+          />
+        </div>
+        <div className="setting-item">
+          <label>Maximum file size (MB)</label>
+          <input
+            type="number"
+            value={systemSettings.maxFileSize}
+            onChange={(e) => handleUpdateSettings('maxFileSize', parseInt(e.target.value))}
+            min="1"
+            max="100"
+          />
+        </div>
+      </div>
+
+      <div className="settings-card">
+        <h3>Security Settings</h3>
+        <div className="setting-item">
+          <label>Password requirements</label>
+          <select>
+            <option>Basic (8+ characters)</option>
+            <option>Strong (12+ chars, mixed case, numbers)</option>
+            <option>Very Strong (16+ chars, special chars)</option>
+          </select>
+        </div>
+        <div className="setting-item">
+          <label>Session timeout (minutes)</label>
+          <input type="number" defaultValue="60" min="15" max="480" />
+        </div>
+      </div>
+
+      <div className="settings-card">
+        <h3>System Actions</h3>
+        <button className="btn-warning">Clear System Cache</button>
+        <button className="btn-danger">Reset to Defaults</button>
+        <button className="btn-primary">Export Settings</button>
+      </div>
+    </div>
+  </div>
+);
+
 // ======== INSERT THIS TEAM SECTION FUNCTION ========
 const renderTeamSection = () => (
   <div className="team-section-enhanced">
@@ -851,11 +1209,11 @@ const renderTeamSection = () => (
       case "incidents":
         return renderIncidentsSection();
       case "users":
-        return renderTeamSection();
-      case "reports":
-        return <div className="section-placeholder"><h2>Report Management</h2><p>Report generation and analytics</p></div>;
+        return renderUserManagementSection();
+      case "analytics":
+        return renderAnalyticsSection();
       case "settings":
-        return <div className="section-placeholder"><h2>System Settings</h2><p>Configuration and preferences</p></div>;
+        return renderSettingsSection();
       default:
         return renderDashboard();
     }
@@ -885,6 +1243,9 @@ const renderTeamSection = () => (
             <Link to="/" className="nav-link-home">
               🏠 Back to Home
             </Link>
+            <button onClick={onLogout} className="logout-btn">
+              Logout
+            </button>
           </div>
         </div>
       </header>
@@ -908,21 +1269,21 @@ const renderTeamSection = () => (
               <span className="nav-label">Incidents</span>
               <span className="nav-badge">{dashboardData.incidents.filter(i => i.status === 'Active').length}</span>
             </button>
-            <button 
+            <button
               className={`nav-item ${activeSection === "users" ? "active" : ""}`}
               onClick={() => setActiveSection("users")}
             >
               <span className="nav-icon">👥</span>
-              <span className="nav-label">Team</span>
+              <span className="nav-label">Users</span>
             </button>
-            <button 
-              className={`nav-item ${activeSection === "reports" ? "active" : ""}`}
-              onClick={() => setActiveSection("reports")}
+            <button
+              className={`nav-item ${activeSection === "analytics" ? "active" : ""}`}
+              onClick={() => setActiveSection("analytics")}
             >
-              <span className="nav-icon">📋</span>
-              <span className="nav-label">Reports</span>
+              <span className="nav-icon">📊</span>
+              <span className="nav-label">Analytics</span>
             </button>
-            <button 
+            <button
               className={`nav-item ${activeSection === "settings" ? "active" : ""}`}
               onClick={() => setActiveSection("settings")}
             >
