@@ -171,6 +171,7 @@ const Stats = () => {
     const mapRef = useRef(null);
     const [map, setMap] = useState(null);
     const [markers, setMarkers] = useState([]);
+    const [googleMaps, setGoogleMaps] = useState(null);
 
     useEffect(() => {
       const initMap = async () => {
@@ -180,12 +181,16 @@ const Stats = () => {
             version: "weekly",
           });
 
-          const { Map } = await loader.importLibrary("maps");
+          const [mapsLibrary] = await Promise.all([
+            loader.importLibrary("maps"),
+          ]);
+
+          setGoogleMaps(mapsLibrary);
 
           // Default center coordinates (Johannesburg area)
           const center = { lat: -26.2041, lng: 28.0473 };
 
-          const mapInstance = new Map(mapRef.current, {
+          const mapInstance = new mapsLibrary.Map(mapRef.current, {
             center: center,
             zoom: 10,
             mapTypeControl: true,
@@ -203,7 +208,7 @@ const Stats = () => {
     }, []);
 
     useEffect(() => {
-      if (!map || !heatmapData) return;
+      if (!map || !heatmapData || !googleMaps) return;
 
       // Clear existing markers
       markers.forEach(marker => marker.setMap(null));
@@ -216,12 +221,12 @@ const Stats = () => {
         if (incident.status === 'verified') markerColor = '#FFA500'; // Orange
         else if (incident.status === 'resolved') markerColor = '#00FF00'; // Green
 
-        const marker = new google.maps.Marker({
+        const marker = new googleMaps.Marker({
           position: position,
           map: map,
           title: `Incident ${incident.incidentNumber}`,
           icon: {
-            path: google.maps.SymbolPath.CIRCLE,
+            path: googleMaps.SymbolPath.CIRCLE,
             fillColor: markerColor,
             fillOpacity: 0.8,
             strokeColor: '#FFFFFF',
@@ -231,7 +236,7 @@ const Stats = () => {
         });
 
         // Create info window
-        const infoWindow = new google.maps.InfoWindow({
+        const infoWindow = new googleMaps.InfoWindow({
           content: `
             <div style="font-family: Arial, sans-serif; max-width: 250px;">
               <h4 style="margin: 0 0 8px 0; color: #1f2937;">${incident.incidentNumber}</h4>
@@ -256,17 +261,17 @@ const Stats = () => {
 
       // Fit map to show all markers
       if (newMarkers.length > 0) {
-        const bounds = new google.maps.LatLngBounds();
+        const bounds = new googleMaps.LatLngBounds();
         newMarkers.forEach(marker => bounds.extend(marker.getPosition()));
         map.fitBounds(bounds);
 
         // Don't zoom in too much for single points
-        const listener = google.maps.event.addListener(map, "idle", () => {
+        const listener = googleMaps.event.addListener(map, "idle", () => {
           if (map.getZoom() > 15) map.setZoom(15);
-          google.maps.event.removeListener(listener);
+          googleMaps.event.removeListener(listener);
         });
       }
-    }, [map, heatmapData, markers]);
+    }, [map, heatmapData, markers, googleMaps]);
 
     return (
       <div style={{ width: '100%', height: '500px', borderRadius: '8px', overflow: 'hidden' }}>

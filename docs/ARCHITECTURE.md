@@ -10,19 +10,28 @@ Iqembu Lamanzi is a comprehensive sewage incident management system that combine
 
 **Location:** `/backend/`
 
+**Base URLs:**
+- Tailscale: `http://100.88.173.46:2000`
+- Local: `http://localhost:2000`
+- Production: `http://10.5.34.224:2000`
+
 **Responsibilities:**
 - RESTful API for incident and job card management
-- WhatsApp integration via Twilio
-- User authentication and authorization
-- Real-time notifications
-- Geospatial data processing
+- WhatsApp and SMS integration via Twilio
+- User authentication and authorization with JWT
+- Real-time WebSocket notifications
+- Geospatial data processing with PostGIS
+- Fraud prevention and detection
+- Advanced team management and analytics
+- Progress tracking and reporting
 
 **Key Technologies:**
 - Node.js + Express.js
-- MongoDB with Mongoose ODM
-- JWT for authentication
-- Twilio for WhatsApp integration
-- Socket.io for real-time updates (planned)
+- PostgreSQL with PostGIS for geospatial data
+- JWT for authentication with refresh tokens
+- Twilio for WhatsApp and SMS integration
+- Socket.io for real-time updates
+- Comprehensive fraud prevention system
 
 ### 2. Machine Learning Service (Python)
 
@@ -42,7 +51,7 @@ Iqembu Lamanzi is a comprehensive sewage incident management system that combine
 
 ### 3. Frontend Dashboard (React/Vue)
 
-**Location:** `/frontend/` (planned)
+**Location:** `/frontend/`
 
 **Responsibilities:**
 - Incident monitoring and management
@@ -68,14 +77,152 @@ Iqembu Lamanzi is a comprehensive sewage incident management system that combine
 - Push notifications
 - Team coordination features
 
+## Additional System Features
+
+### Password Reset & Token Verification System
+
+The system includes comprehensive password management capabilities:
+
+- **Forgot Password:** Users can request password reset via email
+- **Reset Password:** Secure password update with token validation
+- **Verify Reset Token:** Token verification with expiration and single-use enforcement
+- **Session/IP Tracking:** Monitoring of password reset attempts by IP and session
+
+### Detailed Session Management
+
+Advanced session security features:
+
+- **Logout All:** Ability to terminate all active sessions for a user
+- **Active Sessions List:** View all current active sessions with device information
+- **Token Refresh:** Secure token renewal without re-authentication
+- **Device/Session Tracking:** Detailed logging of login attempts, devices, and locations
+
+### Public Citizen Registration API
+
+Citizens can self-register through a dedicated API endpoint:
+
+- **POST /api/users/submit:** Public registration endpoint for citizens
+- No authentication required for initial registration
+- Automatic role assignment as "Citizen"
+- Email verification workflow
+
+### Extensive Team Management API
+
+Comprehensive team management with 20+ endpoints:
+
+- **Team Creation:** POST /api/teams - Create new maintenance teams
+- **Specialization Filtering:** GET /api/teams?specialization=sewage - Filter teams by expertise
+- **Performance Metrics:** GET /api/teams/:id/metrics - Team performance analytics
+- **Workload Analysis:** GET /api/teams/workload - Current team workloads
+- **Recommendations:** GET /api/teams/recommendations - AI-powered team assignment suggestions
+- **Bulk Operations:** POST /api/teams/bulk/add-members - Add multiple members at once
+- **Bulk Operations:** POST /api/teams/bulk/remove-members - Remove multiple members
+- **Team Incident Assignment:** PUT /api/teams/:id/incidents/:incidentId - Direct assignment
+
+### Fraud Prevention Module
+
+Advanced fraud detection and prevention system:
+
+- **Proximity Detection:** Identify suspiciously close incident reports
+- **Image Verification:** AI-powered validation of submitted images
+- **Fraudulent Phone Blocking:** Automatic blocking of suspicious phone numbers
+- **Fraud Logs:** Comprehensive logging of suspicious activities
+- **Fraud Statistics:** Analytics dashboard for fraud patterns
+- **Admin Configurations:** Customizable fraud detection rules and thresholds
+
+### Incident Debug Mode (Development Only)
+
+Developer tools for incident debugging:
+
+- **GET /api/incidents/debug/all:** Complete incident dump with all metadata
+- Includes internal system data, processing logs, and debugging information
+- Only available in development environment
+- Not exposed in production or user documentation
+
+### Batch Job Card Operations
+
+Efficient bulk operations for job card management:
+
+- **Batch Allocate:** POST /api/job-cards/batch/allocate - Assign multiple incidents to teams
+- **Batch Progress Update:** PUT /api/job-cards/batch/progress - Update multiple job cards simultaneously
+
+### Progress Tracking Analytics
+
+Comprehensive progress monitoring and analytics:
+
+- **Timeline:** GET /api/progress/timeline - Historical progress data
+- **History:** GET /api/progress/history - Complete audit trail
+- **Summary:** GET /api/progress/summary - High-level progress overview
+- **Team Progress:** GET /api/progress/teams - Team-specific progress metrics
+- **Analytics:** GET /api/progress/analytics - Advanced analytics and insights
+
+### Citizen Public Transparency Stats
+
+Public access to system statistics:
+
+- **GET /api/citizen/public-stats:** Anonymous access to key metrics
+- Incident resolution rates, response times, and system performance
+- Public transparency and accountability features
+
+### Real-time WebSocket Notifications
+
+Implemented WebSocket support for real-time updates:
+
+- Live incident status updates
+- Real-time team notifications
+- Instant progress tracking
+- Live dashboard updates
+
+### Image Upload Limits & File Rules
+
+Strict file upload controls:
+
+- **Maximum 5 images** per incident report
+- **10MB size limit** per individual image
+- **Accepted formats:** JPEG, PNG, WebP
+- Automatic image optimization and compression
+
+### Pagination & Rate Limiting
+
+System-wide pagination and performance controls:
+
+- **Pagination limits:** Maximum 100 items per page
+- **Rate limiting:** 1000 requests per hour per IP
+- Consistent pagination across all list endpoints
+
+### Available Incidents for Team Assignment
+
+Smart team assignment features:
+
+- **GET /api/teams/:id/incidents/available:** List incidents suitable for specific team
+- Considers team specialization, location, and current workload
+- Optimized assignment recommendations
+
+### Health Check Endpoints
+
+System monitoring and health verification:
+
+- **GET /api/health/users:** User service health check
+- **GET /api/health/citizen:** Citizen service health check
+- **GET /api/health/system:** General system health status
+- Automated monitoring and alerting integration
+
+### SMS Webhook Support
+
+Multi-channel communication support:
+
+- **POST /sms:** SMS webhook for incident reporting
+- Alternative to WhatsApp for SMS-based submissions
+- Full integration with existing fraud prevention and processing pipeline
+
 ## Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    External Services                            │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
-│  │   WhatsApp      │  │   Twilio SMS    │  │   MongoDB Atlas │  │
-│  │   (Citizens)    │  │   (Notifications)│  │   (Database)   │  │
+│  │   WhatsApp      │  │   SMS/Twilio    │  │ PostgreSQL      │  │
+│  │   (Citizens)    │  │   (Notifications)│  │   + PostGIS     │  │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                                    │
@@ -168,60 +315,80 @@ sequenceDiagram
 
 ## Database Schema
 
-### Core Entities
+### Core Entities (PostgreSQL with PostGIS)
 
 ```mermaid
 erDiagram
-    INCIDENT ||--o{ JOB_CARD : generates
-    INCIDENT {
-        string incidentNumber PK
-        string reporterPhone
-        string description
-        string category
-        string priority
-        point location
-        string status
-        string[] mediaUrls
-        date createdAt
-        date updatedAt
-    }
+     INCIDENT ||--o{ JOB_CARD : generates
+     INCIDENT {
+         integer id PK
+         string incidentNumber UK
+         string reporterPhone
+         text description
+         string category
+         string priority
+         geography location
+         string status
+         jsonb mediaUrls
+         timestamp createdAt
+         timestamp updatedAt
+         integer reporterId FK
+     }
 
-    JOB_CARD ||--|| TEAM : assigned_to
-    JOB_CARD {
-        objectId _id PK
-        objectId incident FK
-        objectId team FK
-        objectId assignedBy FK
-        string status
-        string priority
-        string description
-        point location
-        date estimatedCompletion
-        note[] notes
-        date createdAt
-    }
+     JOB_CARD ||--|| TEAM : assigned_to
+     JOB_CARD {
+         integer id PK
+         integer incidentId FK
+         integer teamId FK
+         integer assignedBy FK
+         string status
+         string priority
+         text description
+         geography location
+         timestamp estimatedCompletion
+         timestamp actualCompletion
+         jsonb notes
+         integer progress
+         timestamp createdAt
+         timestamp updatedAt
+     }
 
-    USER ||--o{ INCIDENT : reports
-    USER ||--o{ JOB_CARD : assigns
-    USER {
-        objectId _id PK
-        string userId
-        string firstName
-        string lastName
-        string email
-        string phone
-        string role
-        point location
-    }
+     USER ||--o{ INCIDENT : reports
+     USER ||--o{ JOB_CARD : assigns
+     USER {
+         integer id PK
+         string userId UK
+         string firstName
+         string lastName
+         string email UK
+         string phone
+         string role
+         string passwordHash
+         geography location
+         timestamp createdAt
+         timestamp lastLogin
+         boolean isActive
+     }
 
-    TEAM ||--|{ USER : consists_of
-    TEAM {
-        objectId _id PK
-        string name
-        string description
-        point baseLocation
-        user[] members
-    }
+     TEAM ||--|{ TEAM_MEMBER : consists_of
+     TEAM {
+         integer id PK
+         string name
+         text description
+         geography baseLocation
+         string specialization
+         string status
+         integer leaderId FK
+         timestamp createdAt
+     }
+
+     TEAM_MEMBER {
+         integer id PK
+         integer teamId FK
+         integer userId FK
+         string role
+         timestamp joinedAt
+     }
 ```
 
 ## API Architecture
@@ -307,10 +474,10 @@ graph TB
     end
 
     subgraph "Database Cluster"
-        DB[(MongoDB Primary)]
-        DB1[(MongoDB Secondary 1)]
-        DB2[(MongoDB Secondary 2)]
-    end
+            DB[(PostgreSQL Primary)]
+            DB1[(PostgreSQL Replica 1)]
+            DB2[(PostgreSQL Replica 2)]
+         end
 
     subgraph "External Services"
         WS[WhatsApp/Twilio]
@@ -340,7 +507,7 @@ graph TB
 
 - **Backend:** Docker containers with Node.js
 - **ML Service:** GPU-enabled containers for model inference
-- **Database:** MongoDB with persistent volumes
+- **Database:** PostgreSQL with PostGIS extensions and persistent volumes
 - **Orchestration:** Docker Compose for development, Kubernetes for production
 
 ## Security Architecture
@@ -354,8 +521,9 @@ graph TB
 ### Data Protection
 - HTTPS/TLS encryption
 - Input validation and sanitization
-- SQL injection prevention (MongoDB)
+- SQL injection prevention (PostgreSQL)
 - XSS protection
+- Rate limiting and DDoS protection
 
 ### WhatsApp Security
 - Twilio webhook signature validation
@@ -385,7 +553,6 @@ graph TB
 ## Future Enhancements
 
 ### Planned Features
-- Real-time WebSocket notifications
 - Advanced ML models (object detection, segmentation)
 - Predictive analytics for incident hotspots
 - Integration with municipal GIS systems

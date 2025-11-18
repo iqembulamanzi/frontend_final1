@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createJobCard, getUnallocatedIncidents, getUsers, getIncidents, getAllocatedIncidents, getHeatmapData, allocateIncident, updateIncident, getJobCards, getTeams, createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember, setTeamLeader } from "../api";
+import { createJobCard, getUnallocatedIncidents, getUsers, getIncidents, getAllocatedIncidents, allocateIncident, updateIncident, getJobCards, getTeams, createTeam, updateTeam, deleteTeam, addTeamMember } from "../api";
 import './AssignJob.css';
 
 const AssignJob = ({ user, onLogout }) => {
@@ -37,14 +37,14 @@ const AssignJob = ({ user, onLogout }) => {
     leader: ''
   });
 
-  // Manager details
-  const managerDetails = {
+  // TODO: Fetch manager details dynamically from API instead of hardcoded data
+  const [managerDetails] = useState({
     name: "Team Manager",
     staffNumber: "TM-2024-001",
     role: "Team Manager",
     department: "Operations Management",
     lastLogin: new Date().toLocaleDateString()
-  };
+  });
 
   // Check if user is manager, redirect if not
   useEffect(() => {
@@ -53,132 +53,148 @@ const AssignJob = ({ user, onLogout }) => {
     }
   }, [user, navigate]);
 
-  // Debug: Log user role to verify it's being passed correctly
+
+  // Fetch data on component mount and when user changes
   useEffect(() => {
-    console.log('AssignJob component - user prop:', user);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Check if we have a valid token first
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setError('Please log in to access dashboard data');
+          setLoading(false);
+          return;
+        }
+
+        // Fetch all data using the working API endpoints with retry logic
+        const fetchWithRetry = async (apiCall, maxRetries = 3) => {
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              const result = await apiCall();
+              return result;
+            } catch (error) {
+              if (attempt === maxRetries) {
+                throw error;
+              }
+              // Wait before retry (exponential backoff)
+              await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+            }
+          }
+        };
+
+        const [unallocated, allocated, allIncidentsData, users, jobCards, teamsData] = await Promise.all([
+          fetchWithRetry(() => getUnallocatedIncidents()).catch(() => {
+            return { incidents: [] };
+          }),
+          fetchWithRetry(() => getAllocatedIncidents()).catch(() => {
+            return { incidents: [] };
+          }),
+          fetchWithRetry(() => getIncidents()).catch(() => {
+            return [];
+          }),
+          fetchWithRetry(() => getUsers()).catch(() => {
+            return [];
+          }),
+          fetchWithRetry(() => getJobCards()).catch(() => {
+            return [];
+          }),
+          fetchWithRetry(() => getTeams()).catch(() => {
+            return { teams: [] };
+          })
+        ]);
+
+        setAvailableUsers(users || []);
+        setUnallocatedIncidents(unallocated.incidents || []);
+        setAllocatedIncidents(allocated.incidents || []);
+        setAllIncidents(allIncidentsData || []);
+        setTeams(teamsData.teams || teamsData.data || []);
+        setJobs(jobCards || []);
+
+        // TODO: Implement API calls for pending completions and team reports
+        // For now, initialize as empty arrays until APIs are available
+        setPendingCompletions([]);
+        setTeamReports([]);
+      } catch (error) {
+
+        // Provide more specific error messages based on error type
+        if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          setError('Authentication failed. Please log in again.');
+        } else if (error.message.includes('500') || error.message.includes('buffering timed out')) {
+          setError('Server is experiencing high load. Please try again in a few moments.');
+        } else if (error.message.includes('Failed to fetch')) {
+          setError('Network connection issue. Please check your internet connection.');
+        } else {
+          setError('Failed to load dashboard data. Please try refreshing the page.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Only fetch data if user is manager
+    if (user === "manager") {
+      fetchData();
+    }
   }, [user]);
 
-  // Fetch data on component mount
-useEffect(() => {
-const fetchData = async () => {
-try {
-  setLoading(true);
-  setError(null);
-
-  const [unallocated, allocated, allIncidentsData, heatmap, users, jobCards, teamsData] = await Promise.all([
-    getUnallocatedIncidents().catch(err => ({ incidents: [] })),
-    getAllocatedIncidents().catch(err => ({ incidents: [] })),
-    getIncidents().catch(err => []),
-    getHeatmapData().catch(err => ({ data: [] })),
-    getUsers().catch(err => []),
-    getJobCards().catch(err => []),
-    getTeams().catch(err => ({ teams: [] }))
-  ]);
-
-  setAvailableUsers(users || []);
-
-  setUnallocatedIncidents(unallocated.incidents || []);
-  setAllocatedIncidents(allocated.incidents || []);
-  setAllIncidents(allIncidentsData || []);
-  // Use actual teams from database - API returns {success: true, data: [teams]}
-  setTeams(teamsData.data || []);
-  setJobs(jobCards || []);
-  console.log('Job cards loaded:', jobCards);
-  console.log('Teams loaded:', teamsData.teams);
-  console.log('Available users loaded:', users);
-
-  // Mock pending completions (jobs awaiting approval)
-  const mockPending = [
-    {
-      id: '1',
-      jobId: 'JOB-001',
-      technician: 'Mike Johnson',
-      description: 'Completed sewer line inspection in Zone A',
-      submittedAt: new Date(Date.now() - 3600000).toISOString(),
-      status: 'pending_approval'
-    }
-  ];
-  setPendingCompletions(mockPending);
-
-  // Mock team reports
-  const mockReports = [
-    {
-      id: '1',
-      title: 'Weekly Team Performance Report',
-      period: 'Week 45, 2024',
-      generatedAt: new Date().toISOString(),
-      metrics: {
-        totalJobs: 24,
-        completedJobs: 22,
-        averageResponseTime: '2.3h',
-        teamEfficiency: '91%'
-      }
-    }
-  ];
-  setTeamReports(mockReports);
-} catch (error) {
-  console.error('Error fetching data:', error);
-  setError('Failed to load dashboard data');
-} finally {
-  setLoading(false);
-}
-};
-
-if (user === "manager") {
-fetchData();
-}
-}, [user]);
-
   const handleAssignJob = async (e) => {
-    e.preventDefault();
-    if (!jobData.incidentId || !jobData.teamId || !jobData.description) {
-      setError('Please fill in all required fields');
-      return;
-    }
+      e.preventDefault();
 
-    setLoading(true);
-    setError(null);
+      if (!jobData.incidentId || !jobData.teamId || !jobData.description) {
+        setError('Please fill in all required fields');
+        return;
+      }
 
-    try {
-      const newJobCard = await createJobCard({
-        incidentId: jobData.incidentId,
-        teamId: jobData.teamId,
-        priority: jobData.priority,
-        description: jobData.description,
-        estimatedDuration: jobData.estimatedDuration,
-        specialInstructions: jobData.description
-      });
+      setLoading(true);
+      setError(null);
 
-      // Add to local jobs list
-      setJobs(prev => [...prev, {
-        id: newJobCard.data?._id || Date.now().toString(),
-        title: `Job for ${unallocatedIncidents.find(i => i._id === jobData.incidentId)?.incidentNumber || 'Unknown'}`,
-        description: jobData.description,
-        team: teams.find(t => t._id === jobData.teamId)?.first_name + ' ' + teams.find(t => t._id === jobData.teamId)?.last_name || 'Unknown',
-        status: 'assigned',
-        createdAt: new Date().toISOString()
-      }]);
+      try {
+        await createJobCard({
+          incidentId: jobData.incidentId,
+          teamId: jobData.teamId,
+          priority: jobData.priority,
+          description: jobData.description,
+          estimatedDuration: jobData.estimatedDuration,
+          specialInstructions: jobData.description
+        });
 
-      // Reset form
-      setJobData({
-        incidentId: "",
-        teamId: "",
-        priority: "P2",
-        description: "",
-        estimatedDuration: 120
-      });
+        // Refetch all data to ensure consistency
+        const [updatedIncidents, updatedJobs] = await Promise.all([
+          getUnallocatedIncidents().catch(() => ({ incidents: [] })),
+          getJobCards().catch(() => [])
+        ]);
 
-      // Refresh incidents list
-      const updatedIncidents = await getUnallocatedIncidents();
-      setUnallocatedIncidents(updatedIncidents.incidents || []);
+        setUnallocatedIncidents(updatedIncidents.incidents || []);
+        setJobs(updatedJobs || []);
 
-    } catch (error) {
-      console.error('Error creating job card:', error);
-      setError('Failed to create job card. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+        // Reset form
+        setJobData({
+          incidentId: "",
+          teamId: "",
+          priority: "P2",
+          description: "",
+          estimatedDuration: 120
+        });
+
+        alert('Job successfully assigned to team!');
+
+      } catch (error) {
+
+        // Provide more specific error messages
+        if (error.message.includes('Authentication failed')) {
+          setError('Authentication expired. Please log in again.');
+        } else if (error.message.includes('buffering timed out')) {
+          setError('Server is busy. Please try again in a few moments.');
+        } else {
+          setError('Failed to assign job. Please try again.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const handleInputChange = (field, value) => {
     setJobData(prev => ({
@@ -203,8 +219,7 @@ fetchData();
 
         setShowAssignmentModal(false);
         setSelectedIncident(null);
-      } catch (error) {
-        console.error('Error assigning technician:', error);
+      } catch {
         alert('Failed to assign technician. Please try again.');
       }
     }
@@ -222,46 +237,38 @@ fetchData();
       setAllIncidents(prev => prev.map(inc =>
         inc._id === incidentId ? { ...inc, status: apiStatus } : inc
       ));
-    } catch (error) {
-      console.error('Error updating incident status:', error);
+    } catch {
       alert('Failed to update incident status. Please try again.');
     }
   };
 
   const handleApproveCompletion = async (completionId) => {
-    try {
-      // In a real app, this would call an API to approve the completion
-      setPendingCompletions(prev => prev.filter(comp => comp.id !== completionId));
-      alert('Job completion approved successfully!');
-    } catch (error) {
-      console.error('Error approving completion:', error);
-      alert('Failed to approve completion. Please try again.');
-    }
-  };
+      try {
+        // TODO: Implement API call to approve completion
+        // For now, just update local state until API is available
+        setPendingCompletions(prev => prev.filter(comp => comp.id !== completionId));
+        alert('Job completion approved successfully!');
+      } catch {
+        alert('Failed to approve completion. Please try again.');
+      }
+    };
 
-  const handleRejectCompletion = async (completionId) => {
-    try {
-      // In a real app, this would call an API to reject the completion
-      setPendingCompletions(prev => prev.filter(comp => comp.id !== completionId));
-      alert('Job completion rejected.');
-    } catch (error) {
-      console.error('Error rejecting completion:', error);
-      alert('Failed to reject completion. Please try again.');
-    }
-  };
+   const handleRejectCompletion = async (completionId) => {
+     try {
+       // TODO: Implement API call to reject completion
+       // For now, just update local state until API is available
+       setPendingCompletions(prev => prev.filter(comp => comp.id !== completionId));
+       alert('Job completion rejected.');
+     } catch {
+       alert('Failed to reject completion. Please try again.');
+     }
+   };
 
-  const handleReassignTask = async (jobId, newTechnicianId) => {
-    try {
-      // In a real app, this would call an API to reassign the task
-      const newTechnician = teams.find(t => t._id === newTechnicianId);
-      alert(`Task reassigned to ${newTechnician.first_name} ${newTechnician.last_name}`);
-    } catch (error) {
-      console.error('Error reassigning task:', error);
-    }
-  };
+  // Removed unused function - handleReassignTask
 
   const handleCreateTeam = async (e) => {
     e.preventDefault();
+
     if (!teamFormData.name || !teamFormData.description || !teamFormData.leader) {
       setError('Please fill in all required fields');
       return;
@@ -271,25 +278,11 @@ fetchData();
     setError(null);
 
     try {
-      console.log('Creating team with data:', teamFormData);
-      console.log('Leader field value:', teamFormData.leader);
-      console.log('Leader field type:', typeof teamFormData.leader);
-      console.log('Leader field truthy check:', !!teamFormData.leader);
-      console.log('Leader field length:', teamFormData.leader ? teamFormData.leader.length : 'undefined');
-
       // Ensure leader is a string and not empty
       const cleanData = {
         ...teamFormData,
         leader: teamFormData.leader?.toString().trim() || ''
       };
-
-      console.log('Cleaned data:', cleanData);
-      console.log('Cleaned leader field:', cleanData.leader);
-      console.log('Cleaned leader truthy:', !!cleanData.leader);
-
-      // Check if we have available users
-      console.log('Available users:', availableUsers);
-      console.log('Available users length:', availableUsers.length);
 
       // Use the correct API format from documentation
       const apiData = {
@@ -298,8 +291,6 @@ fetchData();
         leaderId: cleanData.leader,
         memberIds: []
       };
-
-      console.log('API data format:', apiData);
 
       await createTeam(apiData);
 
@@ -318,12 +309,18 @@ fetchData();
 
       alert('Team created successfully!');
     } catch (error) {
-      console.error('Error creating team:', error);
+
+      // Provide more specific error messages
       if (error.message.includes('duplicate key error')) {
         setError('A team with this name already exists. Please choose a different name.');
+      } else if (error.message.includes('Authentication failed')) {
+        setError('Authentication expired. Please log in again.');
+      } else if (error.message.includes('buffering timed out')) {
+        setError('Server is busy. Please try again in a few moments.');
       } else {
         setError('Failed to create team. Please try again.');
       }
+
       alert(error.message); // Show the error message to user
     } finally {
       setLoading(false);
@@ -355,6 +352,24 @@ fetchData();
     );
   };
 
+  const handleRandomSelection = () => {
+    const availableUsersFiltered = availableUsers.filter(user =>
+      !selectedTeam.members?.some(member => member._id === user._id)
+    );
+
+    if (availableUsersFiltered.length === 0) {
+      alert('No available users to select from.');
+      return;
+    }
+
+    // Select up to 5 random users
+    const numToSelect = Math.min(5, availableUsersFiltered.length);
+    const shuffled = [...availableUsersFiltered].sort(() => 0.5 - Math.random());
+    const randomSelection = shuffled.slice(0, numToSelect).map(user => user._id);
+
+    setSelectedMembers(randomSelection);
+  };
+
   const handleAddSelectedMembers = async () => {
     if (!selectedTeam || selectedMembers.length === 0) {
       setError('Please select at least one member to add');
@@ -365,25 +380,36 @@ fetchData();
     setError(null);
 
     try {
-      console.log('Adding members to team:', selectedTeam._id, selectedMembers);
-
       // Add members one by one (API might support bulk, but this is safer)
+      let successCount = 0;
       for (const memberId of selectedMembers) {
-        await addTeamMember(selectedTeam._id, { memberId });
+        try {
+          await addTeamMember(selectedTeam._id, { memberId });
+          successCount++;
+        } catch {
+          // Continue with other members even if one fails
+        }
       }
 
-      // Refresh teams list
-      const updatedTeams = await getTeams();
-      setTeams(updatedTeams.data || []);
+      if (successCount > 0) {
+        // Refresh teams list only if at least one member was added successfully
+        const updatedTeams = await getTeams();
+        setTeams(updatedTeams.data || []);
 
-      setShowAddMembersModal(false);
-      setSelectedMembers([]);
-      alert(`Successfully added ${selectedMembers.length} member(s) to the team!`);
+        setShowAddMembersModal(false);
+        setSelectedMembers([]);
+        alert(`Successfully added ${successCount} out of ${selectedMembers.length} member(s) to the team!`);
+      } else {
+        throw new Error('Failed to add any members to the team');
+      }
 
     } catch (error) {
-      console.error('Error adding team members:', error);
       if (error.message.includes('duplicate')) {
         setError('Some members are already part of this team');
+      } else if (error.message.includes('Authentication failed')) {
+        setError('Authentication expired. Please log in again.');
+      } else if (error.message.includes('buffering timed out')) {
+        setError('Server is busy. Please try again in a few moments.');
       } else {
         setError('Failed to add team members. Please try again.');
       }
@@ -441,63 +467,12 @@ fetchData();
       setTeams(updatedTeams.data || []);
 
       alert('Team deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting team:', error);
+    } catch {
       alert('Failed to delete team. Please try again.');
     }
   };
 
-  const handleAddTeamMember = async (teamId, memberData) => {
-    try {
-      await addTeamMember(teamId, memberData);
-
-      // Refresh teams list
-      const updatedTeams = await getTeams();
-      setTeams(updatedTeams.data || []);
-
-      alert('Team member added successfully!');
-    } catch (error) {
-      console.error('Error adding team member:', error);
-      alert('Failed to add team member. Please try again.');
-    }
-  };
-
-  const handleRemoveTeamMember = async (teamId, memberId) => {
-    try {
-      await removeTeamMember(teamId, memberId);
-
-      // Refresh teams list
-      const updatedTeams = await getTeams();
-      setTeams(updatedTeams.data || []);
-
-      alert('Team member removed successfully!');
-    } catch (error) {
-      console.error('Error removing team member:', error);
-      alert('Failed to remove team member. Please try again.');
-    }
-  };
-
-  const handleSetTeamLeader = async (teamId, leaderData) => {
-    try {
-      await setTeamLeader(teamId, leaderData);
-
-      // Refresh teams list
-      const updatedTeams = await getTeams();
-      setTeams(updatedTeams.data || []);
-
-      alert('Team leader updated successfully!');
-    } catch (error) {
-      console.error('Error setting team leader:', error);
-      alert('Failed to set team leader. Please try again.');
-    }
-  };
-
-  const handleRemoveTeamMemberOld = (memberId) => {
-    if (confirm('Are you sure you want to remove this team member?')) {
-      setTeams(prev => prev.filter(member => member._id !== memberId));
-      alert('Team member removed successfully');
-    }
-  };
+  // Removed unused functions: handleAddTeamMember, handleRemoveTeamMember, handleSetTeamLeader, handleRemoveTeamMemberOld
 
   const renderDashboard = () => (
     <div className="manager-dashboard-content">
@@ -632,7 +607,7 @@ fetchData();
 
   const renderAssignJobSection = () => (
     <div className="assign-job-section">
-      <h2>Assign a New Job Card</h2>
+      <h2>Assign Job to Team</h2>
 
       {error && <div className="error-message">{error}</div>}
 
@@ -708,21 +683,22 @@ fetchData();
         </div>
 
         <button type="submit" className="assign-job-button" disabled={loading}>
-          {loading ? 'Creating Job Card...' : 'Create Job Card'}
+          {loading ? 'Assigning Job...' : 'Assign Job to Team'}
         </button>
       </form>
 
       <div className="current-jobs-section">
-        <h3>Currently Assigned Jobs</h3>
+        <h3>Recently Assigned Jobs</h3>
         <ul className="job-list">
           {Array.isArray(jobs) && jobs.length > 0 ? (
-            jobs.map((job) => (
+            jobs.slice(0, 5).map((job) => (
               <li key={job.id || job._id} className="job-item">
                 <div className="job-info">
-                  <h4>{job.title}</h4>
+                  <h4>{job.incident?.incidentNumber || job.description?.substring(0, 50) || 'Job Card'}</h4>
                   <p>{job.description}</p>
+                  <small>Priority: {job.priority} | Status: {job.status}</small>
                 </div>
-                <span className="job-team">{job.team}</span>
+                <span className="job-team">{job.team?.name || 'Assigned Team'}</span>
               </li>
             ))
           ) : (
@@ -939,7 +915,7 @@ fetchData();
             </div>
           ) : (
             teams.map(team => (
-              <div key={team._id} className="team-member-card" onClick={() => handleAddMembers(team)}>
+              <div key={team._id} className="team-member-card">
                 <div className="team-member-header">
                   <div className="member-identity">
                     <div className="member-avatar-large">
@@ -1224,7 +1200,17 @@ fetchData();
 
             <div className="modal-content-enhanced">
               <div className="members-selection">
-                <h4>Available Users</h4>
+                <div className="selection-header">
+                  <h4>Available Users</h4>
+                  <button
+                    type="button"
+                    className="btn-secondary small random-btn"
+                    onClick={handleRandomSelection}
+                    disabled={availableUsers.filter(user => !selectedTeam.members?.some(member => member._id === user._id)).length === 0}
+                  >
+                    🎲 Random (5)
+                  </button>
+                </div>
                 <div className="members-list">
                   {availableUsers
                     .filter(user => !selectedTeam.members?.some(member => member._id === user._id))
@@ -1301,11 +1287,11 @@ fetchData();
             <span className="stat-label">Pending Approvals</span>
           </div>
           <div className="header-stat">
-            <span className="stat-number">12</span>
+            <span className="stat-number">0</span>
             <span className="stat-label">Approved Today</span>
           </div>
           <div className="header-stat">
-            <span className="stat-number">98%</span>
+            <span className="stat-number">0%</span>
             <span className="stat-label">Approval Rate</span>
           </div>
         </div>

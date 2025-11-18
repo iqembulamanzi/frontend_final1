@@ -9,25 +9,40 @@ const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
     email: '',
     phone: '',
     password: '',
-    role: 'User'
+    confirmPassword: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match.');
+      setLoading(false);
+      return;
+    }
+
     try {
-      await register(formData);
+      const registrationData = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password
+      };
+      await register(registrationData);
       setFormData({
         first_name: '',
         last_name: '',
         email: '',
         phone: '',
         password: '',
-        role: 'User'
+        confirmPassword: ''
       });
       onRegisterSuccess && onRegisterSuccess();
       onClose();
@@ -54,8 +69,8 @@ const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <button className="close-button" onClick={onClose}>×</button>
 
-        <h2>User Registration</h2>
-        <p>Please fill in your details to create an account</p>
+        <h2>Community Registration</h2>
+        <p>Join our community to report and track sewer incidents</p>
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-row">
@@ -113,32 +128,52 @@ const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
 
           <div className="form-group">
             <label htmlFor="password">Password:</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              placeholder="Create a password"
-              minLength="6"
-            />
+            <div className="password-input-container">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                placeholder="Create a password"
+                minLength="6"
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
 
           <div className="form-group">
-            <label htmlFor="role">Role:</label>
-            <select
-              id="role"
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-            >
-              <option value="User">User Account</option>
-              <option value="Guardian">Field Technician (Guardian)</option>
-              <option value="Manager">Team Manager</option>
-              <option value="Admin">Administrator</option>
-            </select>
+            <label htmlFor="confirmPassword">Confirm Password:</label>
+            <div className="password-input-container">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                id="confirmPassword"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                placeholder="Confirm your password"
+                minLength="6"
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
+
 
           {error && <div className="error-message">{error}</div>}
 
@@ -147,10 +182,6 @@ const RegisterModal = ({ isOpen, onClose, onRegisterSuccess }) => {
           </button>
         </form>
 
-        <div className="demo-credentials">
-          <h4>Demo Registration:</h4>
-          <p>You can register with any valid email and password</p>
-        </div>
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -60,15 +61,25 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
 
           <div className="form-group">
             <label htmlFor="password">Password:</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={credentials.password}
-              onChange={handleChange}
-              required
-              placeholder="Enter your password"
-            />
+            <div className="password-input-container">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                name="password"
+                value={credentials.password}
+                onChange={handleChange}
+                required
+                placeholder="Enter your password"
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
 
           {error && <div className="error-message">{error}</div>}
@@ -78,11 +89,6 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
           </button>
         </form>
         
-        <div className="demo-credentials">
-          <h4>Demo Credentials:</h4>
-          <p>Admin: username: <strong>admin</strong>, password: <strong>password</strong></p>
-          <p>Clerk: username: <strong>clerk</strong>, password: <strong>password</strong></p>
-        </div>
       </div>
     </div>
   );

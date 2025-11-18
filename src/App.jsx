@@ -6,7 +6,8 @@ import AssignJob from './components/AssignJob';
 import Stats from './components/Stats';
 import Home from './components/Home';
 import GuardianDashboard from './components/GuardianDashboard';
-import UserDashboard from './components/UserDashboard';
+import CitizenDashboard from './components/CitizenDashboard';
+import ManagerDashboard from './components/ManagerDashboard';
 import './App.css'; // We'll create this file to reset styles
 
 function App() {
@@ -15,10 +16,23 @@ function App() {
   // Check for existing token on app load
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      // You could validate the token here with the backend
-      // For now, we'll assume it's valid and set a default user role
-      setUser('manager'); // Changed to manager for testing assign-job route
+    const storedUser = localStorage.getItem('user');
+    console.log('App.jsx useEffect: token =', !!token, 'storedUser =', storedUser);
+    if (token && storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        console.log('App.jsx: parsed userData =', userData);
+        // Set user role based on stored user data
+        const userRole = userData.role ? userData.role.toLowerCase() : 'user';
+        console.log('App.jsx: setting user to', userRole);
+        setUser(userRole);
+      } catch (error) {
+        console.error('Error parsing stored user data:', error);
+        // Fallback to default if parsing fails
+        setUser('user');
+      }
+    } else {
+      console.log('App.jsx: No token or stored user, user remains null');
     }
   }, []);
 
@@ -38,9 +52,11 @@ function App() {
       {/* Remove any container divs that might have padding/margin */}
       <Routes>
         <Route path="/" element={<Home user={user} onLogin={handleLogin} onLogout={handleLogout} />} />
-        <Route path="/admin" element={<Admin user={user || "admin"} onLogout={handleLogout} />} />
-        <Route path="/user" element={<UserDashboard user={user || "user"} onLogout={handleLogout} />} />
+        <Route path="/admin" element={<Admin user={user || "admin"} onLogout={() => handleLogout()} />} />
+        <Route path="/user" element={<CitizenDashboard user={user || "user"} onLogout={handleLogout} />} />
+        {console.log('App.jsx: Rendering /user route with user =', user, 'passing user prop =', user || "user")}
         <Route path="/guardian" element={<GuardianDashboard user={user || "guardian"} onLogout={handleLogout} />} />
+        <Route path="/manager" element={<ManagerDashboard user={user || "manager"} onLogout={handleLogout} />} />
         <Route path="/chatbot" element={<Chatbot />} />
         <Route path="/assign-job" element={<AssignJob user={user || "manager"} onLogout={handleLogout} />} />
         <Route path="/stats" element={<Stats />} />

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "./LoginModal";
 import RegisterModal from "./RegisterModal";
-import { login, getIncidents } from "../api";
+import { login } from "../api";
 import "./Home.css";
 
 const Home = ({ user, onLogin, onLogout }) => {
@@ -48,17 +48,25 @@ const Home = ({ user, onLogin, onLogout }) => {
   const handleLogin = async (credentials) => {
     try {
       const response = await login(credentials.email, credentials.password);
+      console.log('Home.jsx handleLogin: response =', response);
       if (response.success) {
         localStorage.setItem('token', response.token);
-        onLogin(response.user.role.toLowerCase());
+        localStorage.setItem('user', JSON.stringify(response.user));
+        const userRole = response.user.role.toLowerCase();
+        console.log('Home.jsx: setting user role to', userRole);
+        onLogin(userRole);
         // Navigate to designated dashboard based on user role
-        if (response.user.role === 'Admin') {
+        if (response.user.role === 'Admin' || response.user.role === 'admin') {
           navigate('/admin');
-        } else if (response.user.role === 'Manager') {
+        } else if (response.user.role === 'Manager' || response.user.role === 'manager') {
           navigate('/assign-job');
-        } else if (response.user.role === 'Guardian') {
+        } else if (response.user.role === 'Guardian' || response.user.role === 'guardian') {
           navigate('/guardian');
-        } else if (response.user.role === 'User') {
+        } else if (response.user.role === 'User' || response.user.role === 'user') {
+          console.log('Home.jsx: Navigating to /user for user role');
+          navigate('/user');
+        } else {
+          console.log('Home.jsx: Unknown role, defaulting to /user');
           navigate('/user');
         }
         setIsLoginModalOpen(false);
@@ -70,6 +78,8 @@ const Home = ({ user, onLogin, onLogout }) => {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     onLogout();
   };
 

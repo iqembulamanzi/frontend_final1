@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { reportIncident, getIncidents, updateIncident, deleteReport } from '../api';
+import { reportIncident, getIncidents, updateIncident, deleteReport, getCitizenIncidents, createCitizenIncident, getUserProfile, updateUserProfile } from '../api';
 import './UserDashboard.css';
 
 const UserDashboard = ({ user, onLogout }) => {
@@ -26,71 +26,124 @@ const UserDashboard = ({ user, onLogout }) => {
     category: 'sewer_blockage'
   });
 
-  // User details
-  const userDetails = {
+  // User details state
+  const [userDetails, setUserDetails] = useState({
     name: "Community User",
     accountId: "USR-2024-001",
     role: "Community Reporter",
     department: "Public Services",
     lastLogin: new Date().toLocaleDateString()
-  };
+  });
+
+  // Statistics
+  const [stats, setStats] = useState({
+    totalReports: 0,
+    resolvedReports: 0,
+    pendingReports: 0,
+    avgResponseTime: '2.5 days'
+  });
 
   // Check if user is regular user, redirect if not
   useEffect(() => {
+    console.log('UserDashboard: user prop =', user, 'type:', typeof user);
     if (user !== "user") {
+      console.log('UserDashboard: User is not a citizen, redirecting to home');
       navigate("/");
     }
   }, [user, navigate]);
 
   // Load user's previous reports and notifications
   useEffect(() => {
-    const loadUserReports = async () => {
+    const loadUserData = async () => {
       if (user === "user") {
         try {
           setLoading(true);
-          // In a real app, you'd filter incidents by the current user
-          // For now, show some mock reports
-          const mockReports = [
-            {
-              _id: '1',
-              incidentNumber: 'INC-001',
-              description: 'Reported sewer backup in residential area',
-              status: 'reported',
-              priority: 'P2',
-              location: '123 Main Street',
-              category: 'sewer_blockage',
-              createdAt: new Date(Date.now() - 86400000).toISOString()
-            }
-          ];
-          setMyReports(mockReports);
 
-          // Mock notifications
+          // Get user data from localStorage
+          const storedUser = localStorage.getItem('user');
+          let userId = null;
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            userId = userData.id || userData._id;
+          }
+
+          // Load citizen incidents
+          try {
+            const incidents = await getCitizenIncidents();
+            const reports = incidents.data || incidents || [];
+            setMyReports(reports);
+
+            // Calculate statistics
+            const totalReports = reports.length;
+            const resolvedReports = reports.filter(r => r.status === 'resolved' || r.status === 'completed').length;
+            const pendingReports = reports.filter(r => r.status === 'reported' || r.status === 'pending').length;
+
+            setStats({
+              totalReports,
+              resolvedReports,
+              pendingReports,
+              avgResponseTime: totalReports > 0 ? '2.5 days' : 'N/A' // Mock for now
+            });
+          } catch (error) {
+            console.error('Error loading citizen incidents:', error);
+            // If API fails, keep empty array
+            setMyReports([]);
+            setStats({
+              totalReports: 0,
+              resolvedReports: 0,
+              pendingReports: 0,
+              avgResponseTime: 'N/A'
+            });
+          }
+
+          // Load user profile if userId available
+          if (userId) {
+            try {
+              const profile = await getUserProfile(userId);
+              if (profile && profile.name) {
+                // Update userDetails with real data
+                setUserDetails(prev => ({
+                  ...prev,
+                  name: profile.name,
+                  accountId: profile.accountId || prev.accountId,
+                  role: profile.role || prev.role,
+                  department: profile.department || prev.department,
+                  lastLogin: profile.lastLogin ? new Date(profile.lastLogin).toLocaleDateString() : prev.lastLogin
+                }));
+              }
+            } catch (error) {
+              console.error('Error loading user profile:', error);
+              // Keep default data on error
+            }
+          }
+
+          // Mock notifications for now (could be extended to real notifications)
           const mockNotifications = [
             {
               id: '1',
               type: 'update',
-              message: 'Your incident INC-001 has been assigned to a technician',
+              message: 'Your incident reports are being processed',
               time: new Date(Date.now() - 3600000).toISOString(),
               read: false
             },
             {
               id: '2',
               type: 'system',
-              message: 'System maintenance scheduled for tonight',
+              message: 'Welcome to the Community Reporter Dashboard',
               time: new Date(Date.now() - 7200000).toISOString(),
               read: true
             }
           ];
           setNotifications(mockNotifications);
         } catch (error) {
-          console.error('Error loading reports:', error);
+          console.error('Error loading user data:', error);
         } finally {
           setLoading(false);
         }
       }
     };
 
-    loadUserReports();
+    loadUserData();
   }, [user]);
 
   const handleReportIncident = async (e) => {
@@ -102,26 +155,27 @@ const UserDashboard = ({ user, onLogout }) => {
 
     setReporting(true);
     try {
-      // Create form data for the incident report
-      const formData = new FormData();
-      formData.append('description', reportData.description);
-      formData.append('priority', reportData.priority);
-      formData.append('category', reportData.category);
-      formData.append('location', reportData.location);
-      formData.append('reporterPhone', '123-456-7890'); // Mock phone number
+      // Create incident data for API
+      const incidentData = {
+        description: reportData.description,
+        priority: reportData.priority,
+        category: reportData.category,
+        location: reportData.location,
+        reporterPhone: '123-456-7890' // Mock phone number
+      };
 
-      await reportIncident(formData);
+      const result = await createCitizenIncident(incidentData);
 
       // Add to local reports list
       const newReport = {
-        _id: Date.now().toString(),
-        incidentNumber: `INC-${Date.now().toString().slice(-3)}`,
+        _id: result._id || Date.now().toString(),
+        incidentNumber: result.incidentNumber || `INC-${Date.now().toString().slice(-3)}`,
         description: reportData.description,
-        status: 'reported',
+        status: result.status || 'reported',
         priority: reportData.priority,
         location: reportData.location,
         category: reportData.category,
-        createdAt: new Date().toISOString()
+        createdAt: result.createdAt || new Date().toISOString()
       };
 
       setMyReports(prev => [newReport, ...prev]);
@@ -136,7 +190,11 @@ const UserDashboard = ({ user, onLogout }) => {
       });
     } catch (error) {
       console.error('Error reporting incident:', error);
-      alert('Failed to report incident. Please try again.');
+      if (error.message.includes('403')) {
+        alert('You do not have permission to report incidents.');
+      } else {
+        alert('Failed to report incident. Please try again.');
+      }
     } finally {
       setReporting(false);
     }
@@ -282,6 +340,73 @@ const UserDashboard = ({ user, onLogout }) => {
     </div>
   );
 
+  const renderStatsSection = () => (
+    <div className="stats-section">
+      <div className="section-header">
+        <h2>Incident Statistics</h2>
+        <p>Overview of your community reporting activity</p>
+      </div>
+
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon">📋</div>
+          <div className="stat-content">
+            <h3>{stats.totalReports}</h3>
+            <p>Total Reports</p>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">✅</div>
+          <div className="stat-content">
+            <h3>{stats.resolvedReports}</h3>
+            <p>Resolved</p>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">⏳</div>
+          <div className="stat-content">
+            <h3>{stats.pendingReports}</h3>
+            <p>Pending</p>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">⏱️</div>
+          <div className="stat-content">
+            <h3>{stats.avgResponseTime}</h3>
+            <p>Avg Response Time</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="quick-actions">
+        <h3>Quick Actions</h3>
+        <div className="actions-grid">
+          <button
+            className="action-btn primary"
+            onClick={() => setActiveSection("report")}
+          >
+            <span className="action-icon">🚨</span>
+            Report New Incident
+          </button>
+          <button
+            className="action-btn secondary"
+            onClick={() => setActiveSection("report")}
+          >
+            <span className="action-icon">📋</span>
+            View My Reports
+          </button>
+          <button
+            className="action-btn secondary"
+            onClick={() => setActiveSection("profile")}
+          >
+            <span className="action-icon">👤</span>
+            Update Profile
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderProfileSection = () => (
     <div className="profile-section">
       <div className="profile-card">
@@ -389,6 +514,13 @@ const UserDashboard = ({ user, onLogout }) => {
               <span className="nav-label">Report Issues</span>
             </button>
             <button
+              className={`nav-item ${activeSection === "stats" ? "active" : ""}`}
+              onClick={() => setActiveSection("stats")}
+            >
+              <span className="nav-icon">📊</span>
+              <span className="nav-label">Statistics</span>
+            </button>
+            <button
               className={`nav-item ${activeSection === "profile" ? "active" : ""}`}
               onClick={() => setActiveSection("profile")}
             >
@@ -401,6 +533,7 @@ const UserDashboard = ({ user, onLogout }) => {
         <main className="user-main">
           <div className="user-content-area">
             {activeSection === "report" && renderReportSection()}
+            {activeSection === "stats" && renderStatsSection()}
             {activeSection === "profile" && renderProfileSection()}
           </div>
         </main>

@@ -1,20 +1,19 @@
 /* Manager Dashboard Styles */
 .manager-container {
   min-height: 100vh;
-  background-color: #f8fafc;
+  background-color: #ffffff; /* Pure white background for better contrast */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .manager-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  color: rgb(0, 0, 0);
   padding: 1rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
-
 .manager-brand h1 {
   margin: 0;
   font-size: 1.5rem;
@@ -81,7 +80,7 @@
 
 .nav-link-home {
   background: rgba(255, 255, 255, 0.1);
-  color: white;
+  color: rgb(141, 139, 139);
 }
 
 .nav-link-home:hover {
@@ -121,7 +120,7 @@
   padding: 1rem 1.5rem;
   border: none;
   background: none;
-  color: #6b7280;
+  color: #6b7280; /* Medium gray for inactive state */
   text-align: left;
   cursor: pointer;
   transition: all 0.2s;
@@ -130,17 +129,17 @@
 }
 
 .nav-item:hover {
-  background: #f8fafc;
-  color: #374151;
+  background: #f3f4f6; /* Light gray background on hover */
+  color: #1f2937; /* Dark text for contrast */
 }
 
 .nav-item.active {
-  background: #667eea;
-  color: white;
+  background: #4f46e5; /* Darker blue for better contrast */
+  color: #ffffff; /* White text on dark background */
 }
 
 .nav-item.active:hover {
-  background: #5a67d8;
+  background: #4338ca; /* Even darker blue on hover */
 }
 
 .nav-badge {
@@ -168,7 +167,7 @@
 
 /* Dashboard Styles */
 .manager-dashboard-content {
-  background: #f8fafc;
+  background: #ffffff; /* Pure white background for better contrast */
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -194,12 +193,12 @@
 
 .welcome-text p {
   margin: 0;
-  color: #6b7280;
+  color: #4b5563; /* Darker gray for better contrast */
   font-size: 1.1rem;
 }
 
 .current-time {
-  color: #6b7280;
+  color: #4b5563; /* Darker gray for better contrast */
   font-size: 0.9rem;
 }
 
@@ -252,12 +251,12 @@
   margin: 0 0 0.3rem 0;
   font-size: 2rem;
   font-weight: 700;
-  color: white;
+  color: rgb(80, 63, 63);
 }
 
 .stat-content p {
   margin: 0 0 0.3rem 0;
-  color: #e0e0e0;
+  color: #705f5f;
   font-weight: 500;
 }
 
@@ -286,11 +285,12 @@
 }
 
 .grid-card {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(184, 173, 173, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 16px;
   padding: 1.5rem;
+  color: black;
 }
 
 .incidents-preview {
@@ -320,7 +320,7 @@
 
 .card-header h3 {
   margin: 0;
-  color: white;
+  color: rgb(2, 0, 0);
   font-size: 1.2rem;
 }
 
@@ -396,13 +396,13 @@
 
 .incident-details h4 {
   margin: 0 0 0.2rem 0;
-  color: white;
+  color: rgb(10, 8, 8);
   font-size: 0.9rem;
 }
 
 .incident-details p {
   margin: 0 0 0.3rem 0;
-  color: #e0e0e0;
+  color: #1f1616;
   font-size: 0.8rem;
 }
 
@@ -438,7 +438,7 @@
 
 .incident-time {
   font-size: 0.7rem;
-  color: #e0e0e0;
+  color: #141212;
 }
 
 .team-grid-compact {
@@ -460,7 +460,7 @@
 }
 
 .team-member-compact:hover {
-  background: #f8fafc;
+  background: #535b63;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
@@ -478,7 +478,7 @@
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  color: white;
+  color: rgb(0, 0, 0);
   font-size: 1rem;
   box-shadow: 0 2px 8px rgba(78, 205, 196, 0.3);
 }
@@ -546,7 +546,7 @@
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
-  color: white;
+  color: rgb(0, 0, 0);
   text-decoration: none;
 }
 
@@ -636,7 +636,7 @@
 
 /* Enhanced sections */
 .assign-job-section, .incidents-section, .team-section {
-  background: #f8fafc;
+  background: #ffffff; /* Pure white background for better contrast */
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -734,7 +734,7 @@
 
 .incident-id-priority h3 {
   margin: 0 0 0.5rem 0;
-  color: white;
+  color: rgb(44, 37, 37);
   font-size: 1.3rem;
 }
 
@@ -766,18 +766,32 @@
 }
 
 .icon-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
   border-radius: 6px;
   padding: 0.5rem;
   cursor: pointer;
-  color: #e0e0e0;
-  transition: all 0.3s ease;
+  color: #374151;
+  transition: all 0.2s ease;
+  font-size: 1rem;
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
+  background: #e5e7eb;
+  border-color: #9ca3af;
+  color: #1f2937;
+}
+
+.icon-btn.danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.icon-btn.danger:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
 }
 
 .incident-card-body {
@@ -1125,24 +1139,89 @@
 /* Team Section */
 .team-grid-enhanced {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
   gap: 1.5rem;
   align-items: start;
 }
 
+.members-selection {
+  margin-bottom: 2rem;
+}
+
+.selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.selection-header h4 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.random-btn {
+  background: #f59e0b !important;
+  color: #ffffff !important;
+  border: 1px solid #f59e0b !important;
+  padding: 0.4rem 0.8rem !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.random-btn:hover:not(:disabled) {
+  background: #d97706 !important;
+  border-color: #d97706 !important;
+  transform: translateY(-1px);
+}
+
+.random-btn:disabled {
+  background: #d1d5db !important;
+  border-color: #d1d5db !important;
+  color: #9ca3af !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+.members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: #ffffff;
+}
+
+.no-teams {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+  font-size: 1.1rem;
+}
+
 .team-member-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 16px;
   padding: 1.5rem;
   transition: all 0.3s ease;
   height: fit-content;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
 }
 
 .team-member-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: #4ecdc4;
 }
 
 .team-member-header {
@@ -1170,6 +1249,7 @@
   font-weight: bold;
   color: white;
   font-size: 1.2rem;
+  box-shadow: 0 2px 8px rgba(78, 205, 196, 0.3);
 }
 
 .availability-dot-large {
@@ -1179,36 +1259,41 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.1);
+  border: 3px solid rgba(255, 255, 255, 0.9);
 }
 
-.availability-dot-large.online { background: #2ecc71; }
-.availability-dot-large.busy { background: #f39c12; }
-.availability-dot-large.away { background: #e74c3c; }
+.availability-dot-large.online { background: #10b981; }
+.availability-dot-large.busy { background: #f59e0b; }
+.availability-dot-large.away { background: #ef4444; }
 
 .member-basic-info h3 {
   margin: 0 0 0.3rem 0;
-  color: white;
+  color: #1f2937;
   font-size: 1.3rem;
+  font-weight: 600;
 }
 
 .member-basic-info p {
   margin: 0 0 0.5rem 0;
-  color: #e0e0e0;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
 .specialization-badge {
-  background: rgba(78, 205, 196, 0.2);
-  color: #4ecdc4;
+  background: #ecfdf5;
+  color: #059669;
   padding: 0.3rem 0.8rem;
   border-radius: 8px;
   font-size: 0.8rem;
   font-weight: 600;
+  border: 1px solid #a7f3d0;
 }
 
 .member-actions {
   display: flex;
   gap: 0.5rem;
+  opacity: 1;
+  visibility: visible;
 }
 
 .team-member-details {
@@ -1226,13 +1311,14 @@
 
 .detail-label {
   font-size: 0.8rem;
-  color: #e0e0e0;
+  color: #6b7280;
   font-weight: 500;
 }
 
 .status-tag.status-available {
-  background: rgba(46, 204, 113, 0.2);
-  color: #2ecc71;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
 }
 
 .performance-indicator {
@@ -1263,22 +1349,70 @@
 }
 
 .task-count-badge {
-  background: rgba(52, 152, 219, 0.2);
-  color: #3498db;
+  background: #eff6ff;
+  color: #2563eb;
   padding: 0.3rem 0.8rem;
   border-radius: 8px;
   font-size: 0.8rem;
   font-weight: 600;
+  border: 1px solid #bfdbfe;
 }
 
 .team-member-footer {
   display: flex;
   gap: 0.8rem;
+  justify-content: center;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
 }
 
 .btn-secondary.small {
   padding: 0.5rem 1rem;
   font-size: 0.8rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary.small:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+  color: #1f2937;
+}
+
+.btn-primary.small {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  background: #4ecdc4;
+  color: #ffffff;
+  border: 1px solid #4ecdc4;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary.small:hover {
+  background: #44a08d;
+  border-color: #44a08d;
+}
+
+.btn-danger.small {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  background: #ef4444;
+  color: #ffffff;
+  border: 1px solid #ef4444;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-danger.small:hover {
+  background: #dc2626;
+  border-color: #dc2626;
 }
 
 /* Assign Job Form */
@@ -1298,7 +1432,7 @@
 
 .form-group label {
   font-weight: 600;
-  color: #374151;
+  color: #1f2937; /* Darker for better contrast on light background */
 }
 
 .form-group select,
@@ -1308,6 +1442,15 @@
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 1rem;
+  color: #1f2937; /* Dark text for light background */
+  background-color: #ffffff; /* Explicit white background */
+}
+
+.form-group select:focus,
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: 2px solid #4ecdc4;
+  outline-offset: 2px;
 }
 
 .form-group textarea {
@@ -1318,7 +1461,7 @@
 .assign-job-button {
   padding: 0.75rem 1.5rem;
   background: #4ecdc4;
-  color: white;
+  color: #ffffff; /* Explicit white text for dark background */
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -1333,6 +1476,7 @@
 
 .assign-job-button:disabled {
   background: #9ca3af;
+  color: #ffffff; /* White text on disabled state */
   cursor: not-allowed;
 }
 
@@ -1342,7 +1486,9 @@
 
 .current-jobs-section h3 {
   margin-bottom: 1rem;
-  color: #374151;
+  color: #1f2937; /* Darker for better contrast */
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
 .job-list {
@@ -1358,21 +1504,40 @@
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   margin-bottom: 0.5rem;
+  background-color: #ffffff; /* Explicit white background */
+  transition: box-shadow 0.2s ease;
+}
+
+.job-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .job-info h4 {
   margin: 0 0 0.5rem 0;
-  color: #374151;
+  color: #1f2937; /* Dark text for contrast */
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .job-info p {
   margin: 0;
-  color: #6b7280;
+  color: #6b7280; /* Medium gray for secondary text */
+  font-size: 0.9rem;
+}
+
+.job-info small {
+  color: #9ca3af; /* Light gray for tertiary text */
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .job-team {
   font-weight: 600;
-  color: #4ecdc4;
+  color: #059669; /* Darker green for better contrast */
+  background-color: #ecfdf5; /* Light green background */
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
 }
 
 .error-message {
