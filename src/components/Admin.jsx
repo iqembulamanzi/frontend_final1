@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getIncidents, getAllocatedIncidents, getUnallocatedIncidents, allocateIncident, updateIncident, getIncidentsForMap, getUsers } from "../api";
+import { getIncidents, getAllocatedIncidents, getUnallocatedIncidents, allocateIncident, updateIncident, getIncidentsForMap, getUsers, createTeam, getTeams } from "../api";
 import { Loader } from "@googlemaps/js-api-loader";
 import "./Admin.css";
 
@@ -59,6 +59,16 @@ const Admin = ({ user }) => {
     averageResponseTime: '2.3h',
     systemUptime: '99.8%'
   });
+
+  // Team management state
+  const [teams, setTeams] = useState([]);
+  const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
+  const [newTeamData, setNewTeamData] = useState({
+    name: '',
+    description: '',
+    specialization: 'sewage'
+  });
+  const [creatingTeam, setCreatingTeam] = useState(false);
 
   // Check if user is admin, redirect if not
   useEffect(() => {
@@ -139,6 +149,23 @@ const Admin = ({ user }) => {
     if (user === "admin") {
       fetchDashboardData();
     }
+  }, [user]);
+
+  // Fetch teams data
+  useEffect(() => {
+    const fetchTeams = async () => {
+      if (user === "admin") {
+        try {
+          const teamsData = await getTeams();
+          setTeams(teamsData || []);
+        } catch (error) {
+          console.error('Error fetching teams:', error);
+          setTeams([]);
+        }
+      }
+    };
+
+    fetchTeams();
   }, [user]);
 
   // Handle incident assignment
@@ -276,6 +303,40 @@ const Admin = ({ user }) => {
       [setting]: value
     }));
     alert('Settings updated successfully');
+  };
+
+  const handleCreateTeam = async (e) => {
+    e.preventDefault();
+    if (!newTeamData.name.trim()) {
+      alert('Please enter a team name');
+      return;
+    }
+
+    setCreatingTeam(true);
+    try {
+      const result = await createTeam(newTeamData);
+      if (result.success) {
+        // Refresh teams list
+        const teamsData = await getTeams();
+        setTeams(teamsData || []);
+
+        // Reset form and close modal
+        setNewTeamData({
+          name: '',
+          description: '',
+          specialization: 'sewage'
+        });
+        setShowCreateTeamModal(false);
+        alert('Team created successfully!');
+      } else {
+        alert('Failed to create team. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating team:', error);
+      alert('Failed to create team. Please try again.');
+    } finally {
+      setCreatingTeam(false);
+    }
   };
 
   const renderDashboard = () => (
@@ -1093,16 +1154,16 @@ const renderTeamSection = () => (
       </div>
       <div className="header-stats">
         <div className="header-stat">
-          <span className="stat-number">{teamMembers.length}</span>
+          <span className="stat-number">{teams.length}</span>
+          <span className="stat-label">Total Teams</span>
+        </div>
+        <div className="header-stat">
+          <span className="stat-number">{teams.filter(t => t.status === 'active').length}</span>
+          <span className="stat-label">Active Teams</span>
+        </div>
+        <div className="header-stat">
+          <span className="stat-number">{teams.reduce((sum, t) => sum + (t.memberCount || 0), 0)}</span>
           <span className="stat-label">Total Members</span>
-        </div>
-        <div className="header-stat">
-          <span className="stat-number">{teamMembers.filter(m => m.status === 'Available').length}</span>
-          <span className="stat-label">Available Now</span>
-        </div>
-        <div className="header-stat">
-          <span className="stat-number">{teamMembers.filter(m => m.tasks > 0).length}</span>
-          <span className="stat-label">Active Tasks</span>
         </div>
       </div>
     </div>
@@ -1110,9 +1171,9 @@ const renderTeamSection = () => (
     {/* Action Bar */}
     <div className="action-bar">
       <div className="action-group">
-        <button className="btn-primary">
+        <button className="btn-primary" onClick={() => setShowCreateTeamModal(true)}>
           <span className="btn-icon">➕</span>
-          Add Team Member
+          Create New Team
         </button>
         <button className="btn-secondary">
           <span className="btn-icon">📧</span>
@@ -1142,64 +1203,63 @@ const renderTeamSection = () => (
 
     {/* Team Grid */}
     <div className="team-grid-enhanced">
-      {teamMembers.map(member => (
-        <div key={member.id} className="team-member-card">
-          <div className="team-member-header">
-            <div className="member-identity">
-              <div className="member-avatar-large">
-                {member.avatar}
-                <div className={`availability-dot-large ${member.status === 'Available' ? 'online' : member.status === 'On Site' ? 'busy' : 'away'}`}></div>
-              </div>
-              <div className="member-basic-info">
-                <h3>{member.name}</h3>
-                <p>{member.role}</p>
-                <span className="specialization-badge">Field Operations</span>
-              </div>
-            </div>
-            <div className="member-actions">
-              <button className="icon-btn" title="Edit">✏️</button>
-              <button className="icon-btn" title="Message">💬</button>
-              <button className="icon-btn danger" title="Remove">🗑️</button>
-            </div>
-          </div>
-
-          <div className="team-member-details">
-            <div className="detail-row">
-              <span className="detail-label">Status</span>
-              <span className={`status-tag status-${member.status.toLowerCase().replace(' ', '-')}`}>
-                {member.status}
-              </span>
-            </div>
-            
-            <div className="detail-row">
-              <span className="detail-label">Current Tasks</span>
-              <span className="task-count-badge">{member.tasks} active tasks</span>
-            </div>
-            
-            <div className="detail-row">
-              <span className="detail-label">Performance</span>
-              <div className="performance-indicator">
-                <div className="performance-bar">
-                  <div 
-                    className="performance-fill" 
-                    style={{ width: `${member.tasks > 0 ? '85%' : '95%'}` }}
-                  ></div>
-                </div>
-                <span className="performance-text">{member.tasks > 0 ? '85%' : '95%'}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="team-member-footer">
-            <button className="btn-secondary small">
-              View Schedule
-            </button>
-            <button className="btn-secondary small">
-              Task History
-            </button>
-          </div>
+      {teams.length === 0 ? (
+        <div className="no-teams">
+          <h3>No teams yet</h3>
+          <p>Create your first team to get started with team management</p>
         </div>
-      ))}
+      ) : (
+        teams.map(team => (
+          <div key={team.id || team._id} className="team-member-card">
+            <div className="team-member-header">
+              <div className="member-identity">
+                <div className="member-avatar-large">
+                  {team.name ? team.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'T'}
+                  <div className={`availability-dot-large ${team.status === 'active' ? 'online' : 'away'}`}></div>
+                </div>
+                <div className="member-basic-info">
+                  <h3>{team.name}</h3>
+                  <p>{team.specialization || 'General'}</p>
+                  <span className="specialization-badge">{team.status || 'Active'}</span>
+                </div>
+              </div>
+              <div className="member-actions">
+                <button className="icon-btn" title="Edit">✏️</button>
+                <button className="icon-btn" title="Members">👥</button>
+                <button className="icon-btn danger" title="Delete">🗑️</button>
+              </div>
+            </div>
+
+            <div className="team-member-details">
+              <div className="detail-row">
+                <span className="detail-label">Status</span>
+                <span className={`status-tag status-${(team.status || 'active').toLowerCase()}`}>
+                  {team.status || 'Active'}
+                </span>
+              </div>
+
+              <div className="detail-row">
+                <span className="detail-label">Members</span>
+                <span className="task-count-badge">{team.memberCount || 0} members</span>
+              </div>
+
+              <div className="detail-row">
+                <span className="detail-label">Created</span>
+                <span className="performance-text">{team.createdAt ? new Date(team.createdAt).toLocaleDateString() : 'N/A'}</span>
+              </div>
+            </div>
+
+            <div className="team-member-footer">
+              <button className="btn-secondary small">
+                View Details
+              </button>
+              <button className="btn-secondary small">
+                Manage Members
+              </button>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   </div>
 );
@@ -1320,6 +1380,81 @@ const renderTeamSection = () => (
           </div>
         </main>
       </div>
+
+      {/* Create Team Modal */}
+      {showCreateTeamModal && (
+        <div className="modal-overlay-enhanced">
+          <div className="assignment-modal-enhanced">
+            <div className="modal-header-enhanced">
+              <h2>Create New Team</h2>
+              <p>Set up a new team for incident management</p>
+              <button
+                className="close-btn-enhanced"
+                onClick={() => setShowCreateTeamModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTeam} className="modal-content-enhanced">
+              <div className="form-group">
+                <label htmlFor="team-name">Team Name *</label>
+                <input
+                  type="text"
+                  id="team-name"
+                  value={newTeamData.name}
+                  onChange={(e) => setNewTeamData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter team name"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="team-description">Description</label>
+                <textarea
+                  id="team-description"
+                  value={newTeamData.description}
+                  onChange={(e) => setNewTeamData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Describe the team's purpose and responsibilities"
+                  rows="3"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="team-specialization">Specialization</label>
+                <select
+                  id="team-specialization"
+                  value={newTeamData.specialization}
+                  onChange={(e) => setNewTeamData(prev => ({ ...prev, specialization: e.target.value }))}
+                >
+                  <option value="sewage">Sewage Management</option>
+                  <option value="water">Water Supply</option>
+                  <option value="infrastructure">Infrastructure</option>
+                  <option value="emergency">Emergency Response</option>
+                  <option value="maintenance">General Maintenance</option>
+                </select>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowCreateTeamModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={creatingTeam}
+                >
+                  {creatingTeam ? 'Creating...' : 'Create Team'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

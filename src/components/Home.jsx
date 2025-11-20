@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "./LoginModal";
 import RegisterModal from "./RegisterModal";
-import { login } from "../api";
+import { authService } from "../services/authService";
+import { getDashboardRoute } from "../utils/roleMapping";
 import "./Home.css";
 
 const Home = ({ user, onLogin, onLogout }) => {
@@ -47,28 +48,16 @@ const Home = ({ user, onLogin, onLogout }) => {
 
   const handleLogin = async (credentials) => {
     try {
-      const response = await login(credentials.email, credentials.password);
-      console.log('Home.jsx handleLogin: response =', response);
-      if (response.success) {
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
-        const userRole = response.user.role.toLowerCase();
+      const result = await authService.login(credentials.email, credentials.password);
+      console.log('Home.jsx handleLogin: result =', result);
+
+      if (result.success) {
+        const userRole = result.user.role.toLowerCase();
         console.log('Home.jsx: setting user role to', userRole);
         onLogin(userRole);
+
         // Navigate to designated dashboard based on user role
-        if (response.user.role === 'Admin' || response.user.role === 'admin') {
-          navigate('/admin');
-        } else if (response.user.role === 'Manager' || response.user.role === 'manager') {
-          navigate('/assign-job');
-        } else if (response.user.role === 'Guardian' || response.user.role === 'guardian') {
-          navigate('/guardian');
-        } else if (response.user.role === 'User' || response.user.role === 'user') {
-          console.log('Home.jsx: Navigating to /user for user role');
-          navigate('/user');
-        } else {
-          console.log('Home.jsx: Unknown role, defaulting to /user');
-          navigate('/user');
-        }
+        navigate(result.dashboardRoute);
         setIsLoginModalOpen(false);
       }
     } catch (error) {
@@ -77,22 +66,14 @@ const Home = ({ user, onLogin, onLogout }) => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await authService.logout();
     onLogout();
   };
 
   const handleDashboardNavigation = (role) => {
-    if (role === 'admin') {
-      navigate('/admin');
-    } else if (role === 'manager') {
-      navigate('/assign-job');
-    } else if (role === 'guardian') {
-      navigate('/guardian');
-    } else if (role === 'user') {
-      navigate('/user');
-    }
+    const dashboardRoute = getDashboardRoute(role);
+    navigate(dashboardRoute);
   };
 
   return (

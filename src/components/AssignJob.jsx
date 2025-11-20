@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createJobCard, getUnallocatedIncidents, getUsers, getIncidents, getAllocatedIncidents, allocateIncident, updateIncident, getJobCards, getTeams, createTeam, updateTeam, deleteTeam, addTeamMember } from "../api";
+import { apiClient } from "../api/client";
+import { connectionHandler } from "../utils/connectionHandler";
 import './AssignJob.css';
 
 const AssignJob = ({ user, onLogout }) => {
@@ -69,44 +70,30 @@ const AssignJob = ({ user, onLogout }) => {
           return;
         }
 
-        // Fetch all data using the working API endpoints with retry logic
-        const fetchWithRetry = async (apiCall, maxRetries = 3) => {
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-              const result = await apiCall();
-              return result;
-            } catch (error) {
-              if (attempt === maxRetries) {
-                throw error;
-              }
-              // Wait before retry (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-            }
-          }
-        };
-
+        // Fetch all data using the new API client with built-in retry logic
         const [unallocated, allocated, allIncidentsData, users, jobCards, teamsData] = await Promise.all([
-          fetchWithRetry(() => getUnallocatedIncidents()).catch(() => {
+          apiClient.get('/incidents/unallocated').catch(() => {
             return { incidents: [] };
           }),
-          fetchWithRetry(() => getAllocatedIncidents()).catch(() => {
+          apiClient.get('/incidents/allocated').catch(() => {
             return { incidents: [] };
           }),
-          fetchWithRetry(() => getIncidents()).catch(() => {
+          apiClient.get('/incidents').catch(() => {
             return [];
           }),
-          fetchWithRetry(() => getUsers()).catch(() => {
+          apiClient.get('/teams/available-users').catch(() => {
+            // Manager doesn't have access to users list, return empty array
             return [];
           }),
-          fetchWithRetry(() => getJobCards()).catch(() => {
+          apiClient.get('/job-cards').catch(() => {
             return [];
           }),
-          fetchWithRetry(() => getTeams()).catch(() => {
+          apiClient.get('/teams').catch(() => {
             return { teams: [] };
           })
         ]);
 
-        setAvailableUsers(users || []);
+        setAvailableUsers(Array.isArray(users) ? users : []);
         setUnallocatedIncidents(unallocated.incidents || []);
         setAllocatedIncidents(allocated.incidents || []);
         setAllIncidents(allIncidentsData || []);
@@ -152,7 +139,7 @@ const AssignJob = ({ user, onLogout }) => {
       setError(null);
 
       try {
-        await createJobCard({
+        await apiClient.post('/job-cards/allocate', {
           incidentId: jobData.incidentId,
           teamId: jobData.teamId,
           priority: jobData.priority,
@@ -163,8 +150,8 @@ const AssignJob = ({ user, onLogout }) => {
 
         // Refetch all data to ensure consistency
         const [updatedIncidents, updatedJobs] = await Promise.all([
-          getUnallocatedIncidents().catch(() => ({ incidents: [] })),
-          getJobCards().catch(() => [])
+          apiClient.get('/incidents/unallocated').catch(() => ({ incidents: [] })),
+          apiClient.get('/job-cards').catch(() => [])
         ]);
 
         setUnallocatedIncidents(updatedIncidents.incidents || []);
@@ -211,7 +198,7 @@ const AssignJob = ({ user, onLogout }) => {
   const handleAssignToTechnician = async (technician) => {
     if (selectedIncident) {
       try {
-        await allocateIncident(selectedIncident._id, technician._id);
+        await apiClient.post(`/incidents/${selectedIncident._id}/allocate`, { teamId: technician._id });
 
         // Update local state
         setUnallocatedIncidents(prev => prev.filter(inc => inc._id !== selectedIncident._id));
@@ -231,7 +218,7 @@ const AssignJob = ({ user, onLogout }) => {
                         newStatus === "In Progress" ? "in_progress" :
                         newStatus === "Assigned" ? "verified" : "reported";
 
-      await updateIncident(incidentId, { status: apiStatus });
+      await apiClient.put(`/incidents/${incidentId}`, { status: apiStatus });
 
       // Update local state
       setAllIncidents(prev => prev.map(inc =>
@@ -292,7 +279,7 @@ const AssignJob = ({ user, onLogout }) => {
         memberIds: []
       };
 
-      await createTeam(apiData);
+      await apiClient.post('/teams', apiData);
 
       // Reset form and close modal
       setTeamFormData({
@@ -384,7 +371,7 @@ const AssignJob = ({ user, onLogout }) => {
       let successCount = 0;
       for (const memberId of selectedMembers) {
         try {
-          await addTeamMember(selectedTeam._id, { memberId });
+          await apiClient.post(`/teams/${selectedTeam._id}/members`, { memberId });
           successCount++;
         } catch {
           // Continue with other members even if one fails
@@ -429,7 +416,7 @@ const AssignJob = ({ user, onLogout }) => {
     setError(null);
 
     try {
-      await updateTeam(selectedTeam._id, teamFormData);
+      await apiClient.put(`/teams/${selectedTeam._id}`, teamFormData);
 
       // Reset form and close modal
       setTeamFormData({
@@ -460,10 +447,10 @@ const AssignJob = ({ user, onLogout }) => {
     }
 
     try {
-      await deleteTeam(teamId);
+      await apiClient.delete(`/teams/${teamId}`);
 
       // Refresh teams list
-      const updatedTeams = await getTeams();
+      const updatedTeams = await apiClient.get('/teams');
       setTeams(updatedTeams.data || []);
 
       alert('Team deleted successfully!');
@@ -510,8 +497,8 @@ const AssignJob = ({ user, onLogout }) => {
             <button className="view-all-btn">View All →</button>
           </div>
           <div className="incidents-list">
-            {unallocatedIncidents.slice(0, 4).map(incident => (
-              <div key={incident._id} className="incident-preview-card">
+            {unallocatedIncidents.slice(0, 4).map((incident, index) => (
+              <div key={incident._id || `incident-${index}`} className="incident-preview-card">
                 <div className="incident-priority">
                   <div className={`priority-dot priority-${incident.priority?.toLowerCase() || 'medium'}`}></div>
                 </div>
@@ -537,8 +524,8 @@ const AssignJob = ({ user, onLogout }) => {
             <span className="online-count">{teams.filter(team => team.members?.length > 0).length} teams with members</span>
           </div>
           <div className="team-grid-compact">
-            {teams.slice(0, 4).map(team => (
-              <div key={team._id} className="team-member-compact">
+            {teams.slice(0, 4).map((team, index) => (
+              <div key={team._id || `team-overview-${index}`} className="team-member-compact">
                 <div className="member-avatar-status">
                   <div className="member-avatar">
                     {team.name ? team.name[0].toUpperCase() : 'T'}
@@ -621,8 +608,8 @@ const AssignJob = ({ user, onLogout }) => {
             required
           >
             <option value="">Select an incident</option>
-            {unallocatedIncidents.map(incident => (
-              <option key={incident._id} value={incident._id}>
+            {unallocatedIncidents.map((incident, index) => (
+              <option key={incident._id || `incident-option-${index}`} value={incident._id}>
                 {incident.incidentNumber} - {incident.description}
               </option>
             ))}
@@ -638,8 +625,8 @@ const AssignJob = ({ user, onLogout }) => {
             required
           >
             <option value="">Select a team</option>
-            {teams.map(team => (
-              <option key={team._id} value={team._id}>
+            {teams.map((team, index) => (
+              <option key={team._id || `team-option-${index}`} value={team._id}>
                 {team.name} - {team.description} ({team.members?.length || 0} members)
               </option>
             ))}
@@ -733,8 +720,8 @@ const AssignJob = ({ user, onLogout }) => {
       </div>
 
       <div className="incidents-grid">
-        {allIncidents.map(incident => (
-          <div key={incident._id} className={`incident-card priority-${incident.priority?.toLowerCase() || 'medium'}`}>
+        {allIncidents.map((incident, index) => (
+          <div key={incident._id || `incident-${index}`} className={`incident-card priority-${incident.priority?.toLowerCase() || 'medium'}`}>
             <div className="incident-card-header">
               <div className="incident-id-priority">
                 <h3>{incident.incidentNumber}</h3>
@@ -836,9 +823,9 @@ const AssignJob = ({ user, onLogout }) => {
               <div className="technicians-grid-modal">
                 <h4>Available Team Members</h4>
                 <div className="technicians-list-modal">
-                  {teams.map(technician => (
+                  {teams.map((technician, index) => (
                     <div
-                      key={technician._id}
+                      key={technician._id || `technician-${index}`}
                       className="technician-card-modal"
                       onClick={() => handleAssignToTechnician(technician)}
                     >
@@ -914,8 +901,8 @@ const AssignJob = ({ user, onLogout }) => {
               <p>No teams found. Create your first team to get started.</p>
             </div>
           ) : (
-            teams.map(team => (
-              <div key={team._id} className="team-member-card">
+            teams.map((team, index) => (
+              <div key={team._id || `team-${index}`} className="team-member-card">
                 <div className="team-member-header">
                   <div className="member-identity">
                     <div className="member-avatar-large">
@@ -1043,8 +1030,8 @@ const AssignJob = ({ user, onLogout }) => {
                   required
                 >
                   <option value="">Select a team leader</option>
-                  {availableUsers.map(user => (
-                    <option key={user._id} value={user._id}>
+                  {availableUsers.map((user, index) => (
+                    <option key={user._id || `user-${index}`} value={user._id}>
                       {user.first_name} {user.last_name}
                     </option>
                   ))}
@@ -1136,8 +1123,8 @@ const AssignJob = ({ user, onLogout }) => {
                   required
                 >
                   <option value="">Select a team leader</option>
-                  {availableUsers.map(user => (
-                    <option key={user._id} value={user._id}>
+                  {availableUsers.map((user, index) => (
+                    <option key={user._id || `edit-user-${index}`} value={user._id}>
                       {user.first_name} {user.last_name}
                     </option>
                   ))}
@@ -1214,8 +1201,8 @@ const AssignJob = ({ user, onLogout }) => {
                 <div className="members-list">
                   {availableUsers
                     .filter(user => !selectedTeam.members?.some(member => member._id === user._id))
-                    .map(user => (
-                      <div key={user._id} className="member-selection-item">
+                    .map((user, index) => (
+                      <div key={user._id || `member-${index}`} className="member-selection-item">
                         <label className="member-checkbox">
                           <input
                             type="checkbox"
@@ -1304,8 +1291,8 @@ const AssignJob = ({ user, onLogout }) => {
             <p>All job completions have been reviewed.</p>
           </div>
         ) : (
-          pendingCompletions.map(completion => (
-            <div key={completion.id} className="approval-card">
+          pendingCompletions.map((completion, index) => (
+            <div key={completion.id || `completion-${index}`} className="approval-card">
               <div className="approval-header">
                 <h3>{completion.jobId}</h3>
                 <div className="approval-status">
@@ -1364,8 +1351,8 @@ const AssignJob = ({ user, onLogout }) => {
       </div>
 
       <div className="reports-grid">
-        {teamReports.map(report => (
-          <div key={report.id} className="report-card">
+        {teamReports.map((report, index) => (
+          <div key={report.id || `report-${index}`} className="report-card">
             <div className="report-header">
               <h3>{report.title}</h3>
               <span className="report-period">{report.period}</span>

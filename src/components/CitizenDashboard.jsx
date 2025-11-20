@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { updateIncident, deleteReport, getCitizenIncidents, createCitizenIncident, getUserProfile } from '../api';
+import { apiClient } from '../api/client';
+import { connectionHandler } from '../utils/connectionHandler';
+import { getUserProfile } from '../api';
 import './CitizenDashboard.css';
 
 const CitizenDashboard = ({ user, onLogout }) => {
@@ -25,6 +27,7 @@ const CitizenDashboard = ({ user, onLogout }) => {
     location: '',
     category: 'sewer_blockage'
   });
+  const [connectionStatus, setConnectionStatus] = useState('checking');
 
   // User details state
   const [userDetails, setUserDetails] = useState({
@@ -54,6 +57,16 @@ const CitizenDashboard = ({ user, onLogout }) => {
 
   // Load user's previous reports and notifications
   useEffect(() => {
+    // Monitor connection status
+    const handleConnectionChange = (status) => {
+      setConnectionStatus(status);
+      if (status === 'online') {
+        loadUserData();
+      }
+    };
+
+    connectionHandler.addListener(handleConnectionChange);
+
     const loadUserData = async () => {
       if (user === "user" || user === "citizen") {
         try {
@@ -69,14 +82,22 @@ const CitizenDashboard = ({ user, onLogout }) => {
 
           // Load citizen incidents
           try {
-            const incidents = await getCitizenIncidents();
-            const reports = incidents.data || incidents || [];
-            setMyReports(reports);
+            // Check server connection first
+            const isConnected = await connectionHandler.checkServerConnection();
+            if (!isConnected) {
+              throw new Error('Cannot connect to server. Please check your internet connection.');
+            }
+
+            const response = await apiClient.get('/citizen/incidents?limit=10&page=1');
+            const reports = response.data || response.incidents || response || [];
+            // Ensure reports is always an array
+            const reportsArray = Array.isArray(reports) ? reports : [];
+            setMyReports(reportsArray);
 
             // Calculate statistics
-            const totalReports = reports.length;
-            const resolvedReports = reports.filter(r => r.status === 'resolved' || r.status === 'completed').length;
-            const pendingReports = reports.filter(r => r.status === 'reported' || r.status === 'pending').length;
+            const totalReports = reportsArray.length;
+            const resolvedReports = reportsArray.filter(r => r.status === 'resolved' || r.status === 'completed').length;
+            const pendingReports = reportsArray.filter(r => r.status === 'reported' || r.status === 'pending').length;
 
             setStats({
               totalReports,
@@ -86,6 +107,17 @@ const CitizenDashboard = ({ user, onLogout }) => {
             });
           } catch (error) {
             console.error('Error loading citizen incidents:', error);
+
+            if (error.name === 'AbortError' || error.message.includes('timed out')) {
+              setError('Request timed out. Server may be experiencing high load.');
+            } else if (error.message.includes('Failed to fetch') || error.message.includes('Cannot connect')) {
+              setError('Network error. Please check your connection and try again.');
+            } else if (error.message && error.message.includes('500')) {
+              setError('Server error. Please try again later.');
+            } else {
+              setError(error.message || 'Failed to load incidents');
+            }
+
             // If API fails, keep empty array
             setMyReports([]);
             setStats({
@@ -144,6 +176,10 @@ const CitizenDashboard = ({ user, onLogout }) => {
     };
 
     loadUserData();
+
+    return () => {
+      connectionHandler.removeListener(handleConnectionChange);
+    };
   }, [user]);
 
   const handleReportIncident = async (e) => {
@@ -157,14 +193,14 @@ const CitizenDashboard = ({ user, onLogout }) => {
     try {
       // Create incident data for API
       const incidentData = {
-        description: reportData.description,
+        title: reportData.description, // Backend expects 'title' instead of 'description'
         priority: reportData.priority,
         category: reportData.category,
         location: reportData.location,
         reporterPhone: '123-456-7890' // Mock phone number
       };
 
-      const result = await createCitizenIncident(incidentData);
+      const result = await apiClient.post('/citizen/incidents', incidentData);
 
       // Add to local reports list
       const newReport = {
@@ -474,6 +510,12 @@ const CitizenDashboard = ({ user, onLogout }) => {
 
   return (
     <div className="citizen-dashboard">
+      {connectionStatus === 'offline' && (
+        <div className="connection-banner offline">
+          You are currently offline. Some features may be limited.
+        </div>
+      )}
+
       <header className="citizen-header">
         <div className="citizen-brand">
           <h1>🚰 Community Reporter</h1>

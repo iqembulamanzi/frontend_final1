@@ -12,6 +12,55 @@ import {
 } from '../api';
 import './ManagerDashboard.css';
 
+// Load data with retry logic
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+/**
+ * Utility function to load data with retry mechanism
+ * @param {string} url - API endpoint URL
+ * @param {object} options - Fetch options
+ * @param {number} maxRetries - Maximum number of retry attempts (default: 3)
+ * @param {number} delay - Delay between retries in milliseconds (default: 1000)
+ * @returns {Promise} - Promise that resolves with the response data
+ */
+const loadDataWithRetry = async (url, options = {}, maxRetries = 3, delay = 1000) => {
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}${url}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+          ...options.headers
+        },
+        ...options
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Attempt ${attempt + 1} failed:`, error.message);
+
+      // Don't retry on the last attempt
+      if (attempt < maxRetries) {
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        // Exponential backoff
+        delay *= 2;
+      }
+    }
+  }
+
+  throw new Error(`Failed to load data after ${maxRetries + 1} attempts: ${lastError.message}`);
+};
+
 const ManagerDashboard = ({ user, onLogout }) => {
   const [activeSection, setActiveSection] = useState('overview');
   const [isMobile, setIsMobile] = useState(false);
@@ -36,26 +85,6 @@ const ManagerDashboard = ({ user, onLogout }) => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-
-  // Load data with retry logic
-  const loadDataWithRetry = async (apiCall, maxRetries = 3) => {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        setRetryCount(attempt - 1);
-        const data = await apiCall();
-        setError(null);
-        return data;
-      } catch (err) {
-        console.error(`API call failed (attempt ${attempt}/${maxRetries}):`, err);
-        if (attempt === maxRetries) {
-          setError(`Failed to load data after ${maxRetries} attempts. Please try again later.`);
-          throw err;
-        }
-        // Wait before retrying (exponential backoff)
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-      }
-    }
-  };
 
   const renderContent = () => {
     switch (activeSection) {
@@ -188,11 +217,11 @@ const DashboardOverview = () => {
     const loadKPIs = async () => {
       try {
         setLoading(true);
-        const kpiData = await loadDataWithRetry(getManagerDashboardKPIs);
-        setKpis(kpiData);
-      } catch (err) {
-        console.error('Failed to load KPIs:', err);
-        // Keep default data on error
+        const data = await loadDataWithRetry('/reports/dashboard/stats');
+        setKpis(data);
+      } catch (error) {
+        console.error('Failed to load KPIs:', error);
+        // Handle error appropriately
       } finally {
         setLoading(false);
       }
@@ -200,11 +229,11 @@ const DashboardOverview = () => {
 
     const loadTrends = async () => {
       try {
-        const trendData = await loadDataWithRetry(() => getManagerDashboardTrends({ period: '7d' }));
-        setTrendData(trendData);
-      } catch (err) {
-        console.error('Failed to load trends:', err);
-        // Keep default data on error
+        const data = await loadDataWithRetry('/reports/operational');
+        setTrends(data);
+      } catch (error) {
+        console.error('Failed to load trends:', error);
+        // Handle error appropriately
       }
     };
 
@@ -282,18 +311,67 @@ const DashboardOverview = () => {
 };
 
 const OperationsCenter = () => {
-  const [incidents, setIncidents] = useState([
-    { priority: 'Critical', reported: 3, inProgress: 2, completed: 5, total: 10, avgTime: '1.2h' },
-    { priority: 'High', reported: 8, inProgress: 5, completed: 12, total: 25, avgTime: '2.8h' },
-    { priority: 'Medium', reported: 15, inProgress: 12, completed: 28, total: 55, avgTime: '4.5h' },
-    { priority: 'Low', reported: 22, inProgress: 18, completed: 34, total: 74, avgTime: '8.2h' }
-  ]);
+   const [incidents, setIncidents] = useState([
+     { priority: 'Critical', reported: 3, inProgress: 2, completed: 5, total: 10, avgTime: '1.2h' },
+     { priority: 'High', reported: 8, inProgress: 5, completed: 12, total: 25, avgTime: '2.8h' },
+     { priority: 'Medium', reported: 15, inProgress: 12, completed: 28, total: 55, avgTime: '4.5h' },
+     { priority: 'Low', reported: 22, inProgress: 18, completed: 34, total: 74, avgTime: '8.2h' }
+   ]);
 
-  const totalIncidents = incidents.reduce((acc, curr) => acc + curr.total, 0);
-  const totalReported = incidents.reduce((acc, curr) => acc + curr.reported, 0);
-  const totalInProgress = incidents.reduce((acc, curr) => acc + curr.inProgress, 0);
-  const totalCompleted = incidents.reduce((acc, curr) => acc + curr.completed, 0);
-  const avgTime = '4.7h'; // Calculated average
+   const [operationsData, setOperationsData] = useState(null);
+   const [availableJobs, setAvailableJobs] = useState([]);
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState(null);
+   const [showAssignJobModal, setShowAssignJobModal] = useState(false);
+   const [selectedJob, setSelectedJob] = useState(null);
+
+   const totalIncidents = incidents.reduce((acc, curr) => acc + curr.total, 0);
+   const totalReported = incidents.reduce((acc, curr) => acc + curr.reported, 0);
+   const totalInProgress = incidents.reduce((acc, curr) => acc + curr.inProgress, 0);
+   const totalCompleted = incidents.reduce((acc, curr) => acc + curr.completed, 0);
+   const avgTime = '4.7h'; // Calculated average
+
+   useEffect(() => {
+     const loadOperationsData = async () => {
+       try {
+         setLoading(true);
+         const [opsData, jobsData] = await Promise.all([
+           loadDataWithRetry('/incidents'),
+           loadDataWithRetry('/job-cards')
+         ]);
+         setOperationsData(opsData);
+         setAvailableJobs(jobsData || []);
+       } catch (error) {
+         console.error('Failed to load operations data:', error);
+         setError('Failed to load operations data');
+       } finally {
+         setLoading(false);
+       }
+     };
+
+     loadOperationsData();
+   }, []);
+
+   const handleAssignJob = (job) => {
+     setSelectedJob(job);
+     setShowAssignJobModal(true);
+   };
+
+   const handleAssignToTeam = async (teamId) => {
+     if (!selectedJob) return;
+
+     try {
+       await assignJobToTeam(selectedJob.id, { teamId });
+       setShowAssignJobModal(false);
+       setSelectedJob(null);
+       // Refresh available jobs
+       const jobsData = await loadDataWithRetry('/incidents/pending');
+       setAvailableJobs(jobsData || []);
+     } catch (err) {
+       console.error('Failed to assign job:', err);
+       alert('Failed to assign job. Please try again.');
+     }
+   };
 
   return (
     <div className="operations-center">
@@ -376,31 +454,37 @@ const OperationsCenter = () => {
         {/* Job Assignment Panel */}
         <div className="job-assignment-panel">
           <h4>Available Jobs for Assignment</h4>
+          {loading && <div className="loading-indicator">Loading available jobs...</div>}
+          {error && <div className="error-message">Error loading jobs: {error}</div>}
           <div className="jobs-list">
-            {availableJobs.map((job, index) => (
-              <div key={index} className="job-card">
-                <div className="job-header">
-                  <span className={`priority-badge ${job.priority.toLowerCase()}`}>
-                    {job.priority}
-                  </span>
-                  <span className="job-id">{job.id}</span>
+            {availableJobs.length === 0 ? (
+              <p>No unassigned jobs available</p>
+            ) : (
+              availableJobs.map((job, index) => (
+                <div key={job.id || index} className="job-card">
+                  <div className="job-header">
+                    <span className={`priority-badge ${job.priority?.toLowerCase() || 'medium'}`}>
+                      {job.priority || 'Medium'}
+                    </span>
+                    <span className="job-id">{job.id || job.incidentId}</span>
+                  </div>
+                  <div className="job-details">
+                    <p><strong>Location:</strong> {job.location || 'Unknown'}</p>
+                    <p><strong>Description:</strong> {job.description || 'No description'}</p>
+                    <p><strong>Reported:</strong> {job.reportedTime || job.createdAt || 'Unknown'}</p>
+                  </div>
+                  <div className="job-actions">
+                    <button
+                      className="assign-btn"
+                      onClick={() => handleAssignJob(job)}
+                    >
+                      Assign Team
+                    </button>
+                    <button className="details-btn">Details</button>
+                  </div>
                 </div>
-                <div className="job-details">
-                  <p><strong>Location:</strong> {job.location}</p>
-                  <p><strong>Description:</strong> {job.description}</p>
-                  <p><strong>Reported:</strong> {job.reportedTime}</p>
-                </div>
-                <div className="job-actions">
-                  <button
-                    className="assign-btn"
-                    onClick={() => handleAssignJob(job)}
-                  >
-                    Assign Team
-                  </button>
-                  <button className="details-btn">Details</button>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -487,66 +571,112 @@ const OperationsCenter = () => {
 };
 
 const TeamsManagement = () => {
-  const [districts, setDistricts] = useState([
-    {
-      name: 'North District',
-      teams: 15,
-      operatingCapacity: 78,
-      operationalEfficiency: 87
-    },
-    {
-      name: 'Central District',
-      teams: 18,
-      operatingCapacity: 85,
-      operationalEfficiency: 92
-    },
-    {
-      name: 'South District',
-      teams: 12,
-      operatingCapacity: 72,
-      operationalEfficiency: 83
-    },
-    {
-      name: 'East District',
-      teams: 16,
-      operatingCapacity: 80,
-      operationalEfficiency: 89
-    },
-    {
-      name: 'West District',
-      teams: 14,
-      operatingCapacity: 75,
-      operationalEfficiency: 84
-    }
-  ]);
+   const [districts, setDistricts] = useState([
+     {
+       name: 'North District',
+       teams: 15,
+       operatingCapacity: 78,
+       operationalEfficiency: 87
+     },
+     {
+       name: 'Central District',
+       teams: 18,
+       operatingCapacity: 85,
+       operationalEfficiency: 92
+     },
+     {
+       name: 'South District',
+       teams: 12,
+       operatingCapacity: 72,
+       operationalEfficiency: 83
+     },
+     {
+       name: 'East District',
+       teams: 16,
+       operatingCapacity: 80,
+       operationalEfficiency: 89
+     },
+     {
+       name: 'West District',
+       teams: 14,
+       operatingCapacity: 75,
+       operationalEfficiency: 84
+     }
+   ]);
 
-  const [teamLeaderboard, setTeamLeaderboard] = useState([
-    { name: 'Alpha Team', incidents: 156, avgResponse: '1.8h', efficiency: 97, rating: 'A+' },
-    { name: 'Beta Team', incidents: 142, avgResponse: '2.1h', efficiency: 94, rating: 'A' },
-    { name: 'Gamma Team', incidents: 138, avgResponse: '2.3h', efficiency: 92, rating: 'A' },
-    { name: 'Delta Team', incidents: 129, avgResponse: '2.6h', efficiency: 89, rating: 'B+' },
-    { name: 'Echo Team', incidents: 124, avgResponse: '2.8h', efficiency: 87, rating: 'B' }
-  ]);
+   const [teams, setTeams] = useState([]);
+   const [teamLeaderboard, setTeamLeaderboard] = useState([]);
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState(null);
+   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
+   const [showEditTeamModal, setShowEditTeamModal] = useState(false);
+   const [selectedTeam, setSelectedTeam] = useState(null);
 
-  // AssignJob integration for Team Managers
-  const [showAssignJobModal, setShowAssignJobModal] = useState(false);
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [availableJobs, setAvailableJobs] = useState([
-    {
-      id: 'INC-2023-0456',
-      location: 'Main St Bridge',
-      priority: 'Critical',
-      description: 'Sewage overflow',
-      reportedTime: '2 hours ago'
-    },
-    {
-      id: 'INC-2023-0457',
-      location: 'Industrial Park',
-      priority: 'High',
-      description: 'Pipe burst',
-      reportedTime: '45 minutes ago'
-    }
-  ]);
+   // AssignJob integration for Team Managers
+   const [showAssignJobModal, setShowAssignJobModal] = useState(false);
+   const [selectedJob, setSelectedJob] = useState(null);
+
+   useEffect(() => {
+     const loadTeamsData = async () => {
+       try {
+         setLoading(true);
+         const [teamsData, metricsData] = await Promise.all([
+           loadDataWithRetry('/teams/statistics'),
+           loadDataWithRetry('/reports/team-performance')
+         ]);
+         setTeams(teamsData || []);
+         setTeamLeaderboard(metricsData || []);
+       } catch (error) {
+         console.error('Failed to load teams data:', error);
+         setError('Failed to load teams data');
+       } finally {
+         setLoading(false);
+       }
+     };
+
+     loadTeamsData();
+   }, []);
+
+   const handleCreateTeam = async (teamData) => {
+     try {
+       await createTeam(teamData);
+       setShowCreateTeamModal(false);
+       // Refresh teams
+       const teamsData = await loadDataWithRetry('/teams/statistics');
+       setTeams(teamsData || []);
+     } catch (err) {
+       console.error('Failed to create team:', err);
+       alert('Failed to create team');
+     }
+   };
+
+   const handleUpdateTeam = async (teamId, updates) => {
+     try {
+       await updateTeam(teamId, updates);
+       setShowEditTeamModal(false);
+       setSelectedTeam(null);
+       // Refresh teams
+       const teamsData = await loadDataWithRetry('/teams/statistics');
+       setTeams(teamsData || []);
+     } catch (err) {
+       console.error('Failed to update team:', err);
+       alert('Failed to update team');
+     }
+   };
+
+   const handleDeleteTeam = async (teamId) => {
+     if (!confirm('Are you sure you want to delete this team?')) return;
+
+     try {
+       await deleteTeam(teamId);
+       // Refresh teams
+       const teamsData = await loadDataWithRetry('/teams/statistics');
+       setTeams(teamsData || []);
+     } catch (err) {
+       console.error('Failed to delete team:', err);
+       alert('Failed to delete team');
+     }
+   };
 
   const handleAssignJob = (job) => {
     setSelectedJob(job);
@@ -567,6 +697,14 @@ const TeamsManagement = () => {
       {/* Organizational Overview */}
       <div className="organizational-overview">
         <h3>🏢 Organizational Overview</h3>
+        <div className="overview-actions">
+          <button
+            className="create-team-btn"
+            onClick={() => setShowCreateTeamModal(true)}
+          >
+            ➕ Create New Team
+          </button>
+        </div>
         <div className="districts-grid">
           {districts.map((district, index) => (
             <div key={index} className="district-card">
@@ -638,33 +776,102 @@ const TeamsManagement = () => {
         </div>
 
         {/* Team Leaderboard */}
-        <div className="team-leaderboard">
-          <h4>🏆 Team Leaderboard (Current Month)</h4>
-          <div className="leaderboard-table">
-            <div className="table-header">
-              <div>Rank</div>
-              <div>Team Name</div>
-              <div>Incidents</div>
-              <div>Avg Response</div>
-              <div>Efficiency</div>
-              <div>Rating</div>
-            </div>
-            {teamLeaderboard.map((team, index) => (
-              <div key={index} className="table-row">
-                <div className="rank">{index + 1}</div>
-                <div className="team-name">{team.name}</div>
-                <div>{team.incidents}</div>
-                <div>{team.avgResponse}</div>
-                <div>{team.efficiency}%</div>
-                <div className="rating">{team.rating}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+         <div className="team-leaderboard">
+           <h4>🏆 Team Leaderboard (Current Month)</h4>
+           {loading && <div className="loading-indicator">Loading team data...</div>}
+           {error && <div className="error-message">Error loading teams: {error}</div>}
+           <div className="leaderboard-table">
+             <div className="table-header">
+               <div>Rank</div>
+               <div>Team Name</div>
+               <div>Incidents</div>
+               <div>Avg Response</div>
+               <div>Efficiency</div>
+               <div>Actions</div>
+             </div>
+             {teams.length === 0 ? (
+               <div className="table-row">
+                 <div colSpan="6">No teams found</div>
+               </div>
+             ) : (
+               teams.map((team, index) => (
+                 <div key={team.id || index} className="table-row">
+                   <div className="rank">{index + 1}</div>
+                   <div className="team-name">{team.name}</div>
+                   <div>{team.incidentsHandled || team.metrics?.incidents || 0}</div>
+                   <div>{team.avgResponseTime || team.metrics?.avgResponse || 'N/A'}</div>
+                   <div>{team.efficiency || team.metrics?.efficiency || 0}%</div>
+                   <div>
+                     <button onClick={() => {
+                       setSelectedTeam(team);
+                       setShowEditTeamModal(true);
+                     }}>Edit</button>
+                     <button onClick={() => handleDeleteTeam(team.id)}>Delete</button>
+                   </div>
+                 </div>
+               ))
+             )}
+           </div>
+         </div>
+       </div>
+
+       {/* Create Team Modal */}
+       {showCreateTeamModal && (
+         <div className="modal-overlay">
+           <div className="modal">
+             <h3>Create New Team</h3>
+             <form onSubmit={(e) => {
+               e.preventDefault();
+               const formData = new FormData(e.target);
+               handleCreateTeam({
+                 name: formData.get('name'),
+                 location: formData.get('location'),
+                 description: formData.get('description')
+               });
+             }}>
+               <input name="name" type="text" placeholder="Team Name" required />
+               <input name="location" type="text" placeholder="Location/District" required />
+               <textarea name="description" placeholder="Description" rows="3"></textarea>
+               <div className="modal-actions">
+                 <button type="submit">Create Team</button>
+                 <button type="button" onClick={() => setShowCreateTeamModal(false)}>Cancel</button>
+               </div>
+             </form>
+           </div>
+         </div>
+       )}
+
+       {/* Edit Team Modal */}
+       {showEditTeamModal && selectedTeam && (
+         <div className="modal-overlay">
+           <div className="modal">
+             <h3>Edit Team</h3>
+             <form onSubmit={(e) => {
+               e.preventDefault();
+               const formData = new FormData(e.target);
+               handleUpdateTeam(selectedTeam.id, {
+                 name: formData.get('name'),
+                 location: formData.get('location'),
+                 description: formData.get('description')
+               });
+             }}>
+               <input name="name" type="text" placeholder="Team Name" defaultValue={selectedTeam.name} required />
+               <input name="location" type="text" placeholder="Location/District" defaultValue={selectedTeam.location} required />
+               <textarea name="description" placeholder="Description" rows="3" defaultValue={selectedTeam.description}></textarea>
+               <div className="modal-actions">
+                 <button type="submit">Update Team</button>
+                 <button type="button" onClick={() => {
+                   setShowEditTeamModal(false);
+                   setSelectedTeam(null);
+                 }}>Cancel</button>
+               </div>
+             </form>
+           </div>
+         </div>
+       )}
+     </div>
+   );
+ };
 
 const ReportsSection = () => {
   const [analyticsData, setAnalyticsData] = useState({
@@ -883,12 +1090,259 @@ const BudgetManagement = () => {
   );
 };
 
-const SettingsSection = () => (
-  <div className="section-content">
-    <h2>⚙ Settings</h2>
-    <p>System configuration and user management will be displayed here.</p>
-  </div>
-);
+const SettingsSection = () => {
+   const [users, setUsers] = useState([]);
+   const [teams, setTeams] = useState([]);
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState(null);
+   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
+   const [selectedUser, setSelectedUser] = useState(null);
+   const [selectedTeam, setSelectedTeam] = useState(null);
+
+   useEffect(() => {
+     const loadSettingsData = async () => {
+
+       try {
+
+         setLoading(true);
+
+         const [usersData, teamsData] = await Promise.all([
+
+           loadDataWithRetry('/users'),
+
+           loadDataWithRetry('/teams')
+
+         ]);
+
+         setUsers(usersData || []);
+
+         setTeams(teamsData || []);
+
+       } catch (error) {
+
+         console.error('Failed to load settings data:', error);
+
+         setError('Failed to load settings data');
+
+       } finally {
+
+         setLoading(false);
+
+       }
+
+     };
+
+     loadSettingsData();
+   }, []);
+
+   const handleCreateUser = async (userData) => {
+     try {
+       // Note: API might not have user creation endpoint, this is placeholder
+       console.log('Creating user:', userData);
+       setShowCreateUserModal(false);
+     } catch (err) {
+       console.error('Failed to create user:', err);
+       alert('Failed to create user');
+     }
+   };
+
+   const handleCreateTeam = async (teamData) => {
+     try {
+       console.log('Creating team with data:', teamData);
+       const result = await createTeam(teamData);
+       console.log('Team creation result:', result);
+       setShowCreateTeamModal(false);
+       // Refresh teams
+       const teamsData = await loadDataWithRetry('/teams');
+       setTeams(teamsData || []);
+       alert('Team created successfully!');
+     } catch (err) {
+       console.error('Failed to create team:', err);
+       alert(`Failed to create team: ${err.message || 'Unknown error'}`);
+     }
+   };
+
+   const handleUpdateTeam = async (teamId, updates) => {
+     try {
+       await updateTeam(teamId, updates);
+       // Refresh teams
+       const teamsData = await loadDataWithRetry('/teams');
+       setTeams(teamsData || []);
+     } catch (err) {
+       console.error('Failed to update team:', err);
+       alert('Failed to update team');
+     }
+   };
+
+   const handleDeleteTeam = async (teamId) => {
+     if (!confirm('Are you sure you want to delete this team?')) return;
+
+     try {
+       await deleteTeam(teamId);
+       // Refresh teams
+       const teamsData = await loadDataWithRetry('/teams');
+       setTeams(teamsData || []);
+     } catch (err) {
+       console.error('Failed to delete team:', err);
+       alert('Failed to delete team');
+     }
+   };
+
+   return (
+     <div className="settings-section">
+       <h2>⚙ System Settings & User Management</h2>
+
+       {error && <div className="error-message">{error}</div>}
+       {loading && <div className="loading-indicator">Loading settings...</div>}
+
+       {/* User Management */}
+       <div className="settings-card">
+         <h3>👥 User Management</h3>
+         <div className="settings-actions">
+           <button
+             className="create-btn"
+             onClick={() => setShowCreateUserModal(true)}
+           >
+             ➕ Create User
+           </button>
+         </div>
+         <div className="users-list">
+           <div className="table-header">
+             <div>Name</div>
+             <div>Email</div>
+             <div>Role</div>
+             <div>Status</div>
+             <div>Actions</div>
+           </div>
+           {users.map((user, index) => (
+             <div key={user.id || index} className="table-row">
+               <div>{user.first_name} {user.last_name}</div>
+               <div>{user.email}</div>
+               <div>{user.role}</div>
+               <div>Active</div>
+               <div>
+                 <button onClick={() => setSelectedUser(user)}>Edit</button>
+               </div>
+             </div>
+           ))}
+         </div>
+       </div>
+
+       {/* Team Management */}
+       <div className="settings-card">
+         <h3>👥 Team Management</h3>
+         <div className="settings-actions">
+           <button
+             className="create-btn"
+             onClick={() => setShowCreateTeamModal(true)}
+           >
+             ➕ Create Team
+           </button>
+         </div>
+         <div className="teams-list">
+           <div className="table-header">
+             <div>Team Name</div>
+             <div>Members</div>
+             <div>Location</div>
+             <div>Status</div>
+             <div>Actions</div>
+           </div>
+           {teams.map((team, index) => (
+             <div key={team.id || index} className="table-row">
+               <div>{team.name}</div>
+               <div>{team.members?.length || 0}</div>
+               <div>{team.location || 'N/A'}</div>
+               <div>{team.status || 'Active'}</div>
+               <div>
+                 <button onClick={() => setSelectedTeam(team)}>Edit</button>
+                 <button onClick={() => handleDeleteTeam(team.id)}>Delete</button>
+               </div>
+             </div>
+           ))}
+         </div>
+       </div>
+
+       {/* System Configuration */}
+       <div className="settings-card">
+         <h3>🔧 System Configuration</h3>
+         <div className="config-options">
+           <div className="config-item">
+             <label>Auto-assign jobs to teams:</label>
+             <input type="checkbox" defaultChecked />
+           </div>
+           <div className="config-item">
+             <label>Email notifications:</label>
+             <input type="checkbox" defaultChecked />
+           </div>
+           <div className="config-item">
+             <label>Maintenance reminders:</label>
+             <input type="checkbox" defaultChecked />
+           </div>
+         </div>
+       </div>
+
+       {/* Create User Modal */}
+       {showCreateUserModal && (
+         <div className="modal-overlay">
+           <div className="modal">
+             <h3>Create New User</h3>
+             <form onSubmit={(e) => {
+               e.preventDefault();
+               const formData = new FormData(e.target);
+               handleCreateUser({
+                 email: formData.get('email'),
+                 firstName: formData.get('firstName'),
+                 lastName: formData.get('lastName'),
+                 role: formData.get('role')
+               });
+             }}>
+               <input name="email" type="email" placeholder="Email" required />
+               <input name="firstName" type="text" placeholder="First Name" required />
+               <input name="lastName" type="text" placeholder="Last Name" required />
+               <select name="role" required>
+                 <option value="">Select Role</option>
+                 <option value="technician">Technician</option>
+                 <option value="team leader">Team Leader</option>
+                 <option value="manager">Manager</option>
+               </select>
+               <div className="modal-actions">
+                 <button type="submit">Create</button>
+                 <button type="button" onClick={() => setShowCreateUserModal(false)}>Cancel</button>
+               </div>
+             </form>
+           </div>
+         </div>
+       )}
+
+       {/* Create Team Modal */}
+       {showCreateTeamModal && (
+         <div className="modal-overlay">
+           <div className="modal">
+             <h3>Create New Team</h3>
+             <form onSubmit={(e) => {
+               e.preventDefault();
+               const formData = new FormData(e.target);
+               handleCreateTeam({
+                 name: formData.get('name'),
+                 location: formData.get('location'),
+                 description: formData.get('description')
+               });
+             }}>
+               <input name="name" type="text" placeholder="Team Name" required />
+               <input name="location" type="text" placeholder="Location/District" required />
+               <textarea name="description" placeholder="Description" rows="3"></textarea>
+               <div className="modal-actions">
+                 <button type="submit">Create</button>
+                 <button type="button" onClick={() => setShowCreateTeamModal(false)}>Cancel</button>
+               </div>
+             </form>
+           </div>
+         </div>
+       )}
+     </div>
+   );
+};
 
 // Mobile version with full features
 const MobileManagerDashboard = ({ activeSection, setActiveSection, onLogout }) => {

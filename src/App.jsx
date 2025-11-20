@@ -52,11 +52,11 @@ function App() {
       {/* Remove any container divs that might have padding/margin */}
       <Routes>
         <Route path="/" element={<Home user={user} onLogin={handleLogin} onLogout={handleLogout} />} />
-        <Route path="/admin" element={<Admin user={user || "admin"} onLogout={() => handleLogout()} />} />
-        <Route path="/user" element={<CitizenDashboard user={user || "user"} onLogout={handleLogout} />} />
-        {console.log('App.jsx: Rendering /user route with user =', user, 'passing user prop =', user || "user")}
-        <Route path="/guardian" element={<GuardianDashboard user={user || "guardian"} onLogout={handleLogout} />} />
-        <Route path="/manager" element={<ManagerDashboard user={user || "manager"} onLogout={handleLogout} />} />
+        <Route path="/admin/dashboard" element={<Admin user={user || "admin"} onLogout={() => handleLogout()} />} />
+        <Route path="/citizen/dashboard" element={<CitizenDashboard user={user || "user"} onLogout={handleLogout} />} />
+        {console.log('App.jsx: Rendering /citizen/dashboard route with user =', user, 'passing user prop =', user || "user")}
+        <Route path="/technician/dashboard" element={<GuardianDashboard user={user || "guardian"} onLogout={handleLogout} />} />
+        <Route path="/manager/dashboard" element={<ManagerDashboard user={user || "manager"} onLogout={handleLogout} />} />
         <Route path="/chatbot" element={<Chatbot />} />
         <Route path="/assign-job" element={<AssignJob user={user || "manager"} onLogout={handleLogout} />} />
         <Route path="/stats" element={<Stats />} />
